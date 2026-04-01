@@ -1,0 +1,64 @@
+/* Stream Video SDK Custom Styling */
+
+/* Call control buttons */
+.str-video__call-controls button,
+.str-video__control-button,
+button[class*="str-video"] {
+  background-color: rgba(51, 65, 85, 0.9) !important;
+  color: white !important;
+  border-radius: 9999px !important;
+  width: 48px !important;
+  height: 48px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  border: none !important;
+}
+
+.str-video__call-controls button:hover,
+.str-video__control-button:hover,
+button[class*="str-video"]:hover {
+  background-color: rgba(71, 85, 105, 1) !important;
+  transform: scale(1.05) !important;
+}
+
+.str-video__call-controls button svg,
+.str-video__control-button svg,
+button[class*="str-video"] svg {
+  width: 20px !important;
+  height: 20px !important;
+  color: white !important;
+}
+
+/* Active/Muted state */
+.str-video__call-controls button[data-active="true"],
+.str-video__control-button[data-active="true"],
+button[class*="str-video"][data-active="true"] {
+  background-color: rgba(239, 68, 68, 0.9) !important;
+}
+
+.str-video__call-controls button[data-active="true"]:hover,
+.str-video__control-button[data-active="true"]:hover {
+  background-color: rgba(220, 38, 38, 1) !important;
+}
+
+/* Video tiles */
+.str-video__participant-view {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+/* Participant name labels */
+.str-video__participant-details {
+  background: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(8px) !important;
+  border-radius: 8px !important;
+  padding: 4px 12px !important;
+}
+
+/* Video preview in setup */
+.str-video__video-preview {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
