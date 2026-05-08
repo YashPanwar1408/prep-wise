@@ -1,3 +1,6 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -1109,6 +1112,877 @@ FROM orders;`
   console.log('✅ Created SQL cheatsheet');
 
   // ============================================================================
+  // BACKEND
+  // ============================================================================
+
+  // Node.js + Express Cheatsheet
+  await prisma.cheatsheet.create({
+    data: {
+      categoryId: categories[2].id,
+      slug: 'node-express',
+      title: 'Node.js + Express',
+      subtitle: 'Build REST APIs with routing, middleware, and error handling',
+      description: 'Practical Express patterns for production-ready APIs',
+      icon: '🧩',
+      difficulty: 'Intermediate',
+      tags: ['nodejs', 'express', 'api', 'rest', 'middleware'],
+      popularity: 94,
+      overview: `Express is a minimalist Node.js framework for building HTTP APIs.
+
+**Use it for:**
+- REST APIs and microservices
+- Web apps with server-side rendering
+- Middleware-based request handling
+
+**Core idea:** requests flow through middleware -> route handler -> response (or error handler).`,
+      syntax: {
+        appSetup: {
+          title: 'Minimal Server Setup',
+          code: `const express = require('express');
+
+const app = express();
+app.use(express.json());
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.listen(5000, () => console.log('API on :5000'));`
+        },
+        router: {
+          title: 'Routers (Recommended Structure)',
+          code: `// routes/users.js
+const express = require('express');
+const router = express.Router();
+
+router.get('/', async (req, res) => {
+  res.json([]);
+});
+
+module.exports = router;
+
+// index.js
+app.use('/api/users', require('./routes/users'));`
+        },
+        middleware: {
+          title: 'Middleware Basics',
+          code: `function requireJson(req, res, next) {
+  if (req.headers['content-type']?.includes('application/json')) return next();
+  return res.status(415).json({ error: 'Expected application/json' });
+}
+
+app.post('/api/things', requireJson, (req, res) => {
+  res.status(201).json({ ok: true });
+});`
+        },
+        errorHandling: {
+          title: 'Central Error Handler',
+          code: `// async handler wrapper
+const asyncHandler = (fn) => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
+app.get('/api/profile', asyncHandler(async (req, res) => {
+  throw new Error('Boom');
+}));
+
+// error middleware must be last
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Internal Server Error' });
+});`
+        }
+      },
+      operations: {
+        validation: {
+          title: 'Input Validation (Example with Zod)',
+          code: `const { z } = require('zod');
+
+const createUserSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1)
+});
+
+app.post('/api/users', (req, res) => {
+  const parsed = createUserSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ errors: parsed.error.flatten() });
+  }
+  res.status(201).json(parsed.data);
+});`
+        },
+        pagination: {
+          title: 'Pagination (Limit/Offset)',
+          code: `app.get('/api/items', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  const offset = Math.max(parseInt(req.query.offset || '0', 10), 0);
+
+  // fetch from DB here using limit/offset
+  res.json({ limit, offset, items: [] });
+});`
+        }
+      },
+      examples: {
+        crudRoutes: {
+          title: 'CRUD Routes (Common Pattern)',
+          code: `// POST /api/users
+// GET  /api/users/:id
+// PATCH /api/users/:id
+// DELETE /api/users/:id
+
+router.post('/', asyncHandler(async (req, res) => {
+  const created = { id: 'uuid', ...req.body };
+  res.status(201).json(created);
+}));
+
+router.get('/:id', asyncHandler(async (req, res) => {
+  const user = null; // fetch user
+  if (!user) return res.status(404).json({ error: 'Not found' });
+  res.json(user);
+}));`
+        },
+        fileUpload: {
+          title: 'File Uploads (multer)',
+          code: `const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
+
+app.post('/api/upload', upload.single('file'), (req, res) => {
+  res.json({ filename: req.file.filename, original: req.file.originalname });
+});`
+        }
+      },
+      mistakes: [
+        'Forgetting to handle async errors (unhandled promise rejections)',
+        'Not validating inputs (security and correctness issues)',
+        'Returning 200 for everything (use correct status codes)',
+        'Leaking stack traces and internal errors to clients',
+        'Doing heavy work on the request thread (blocking the event loop)',
+        'Missing timeouts, retries, and rate limiting'
+      ],
+      tips: [
+        'Keep route handlers thin: move logic into services',
+        'Use a single error handler + async wrapper',
+        'Validate all inputs (body/query/params)',
+        'Return consistent error shapes (code, message, details)',
+        'Add request IDs and structured logs for debugging',
+        'Write API tests with Supertest for critical routes'
+      ],
+      relatedCheatsheets: ['javascript', 'sql', 'docker', 'jwt-auth'],
+      relatedRoadmaps: ['backend-developer', 'full-stack-developer'],
+      relatedDSA: []
+    }
+  });
+
+  console.log('✅ Created Node.js + Express cheatsheet');
+
+  // JWT Authentication Cheatsheet
+  await prisma.cheatsheet.create({
+    data: {
+      categoryId: categories[2].id,
+      slug: 'jwt-auth',
+      title: 'JWT Authentication',
+      subtitle: 'Stateless API auth with access + refresh tokens',
+      description: 'JWT structure, signing/verifying, middleware, and common pitfalls',
+      icon: '🔐',
+      difficulty: 'Intermediate',
+      tags: ['auth', 'jwt', 'security', 'cookies', 'bearer'],
+      popularity: 90,
+      overview: `JWT (JSON Web Token) is commonly used to authenticate API requests.
+
+**Recommended pattern:**
+- short-lived access token (sent in Authorization header)
+- long-lived refresh token (stored in httpOnly cookie)
+
+**Important:** JWTs are not encrypted. Never put secrets (passwords, API keys) inside tokens.`,
+      syntax: {
+        tokenBasics: {
+          title: 'Token Structure (Concept)',
+          code: `header.payload.signature
+
+// payload often contains:
+// - sub (subject / user id)
+// - role/permissions
+// - iat (issued at)
+// - exp (expiry)`
+        },
+        signVerify: {
+          title: 'Sign + Verify (jsonwebtoken)',
+          code: `const jwt = require('jsonwebtoken');
+
+const accessToken = jwt.sign(
+  { sub: user.id, role: user.role },
+  process.env.JWT_SECRET,
+  { expiresIn: '15m' }
+);
+
+const payload = jwt.verify(accessToken, process.env.JWT_SECRET);
+console.log(payload.sub);`
+        },
+        middleware: {
+          title: 'Protect Routes (Bearer Token)',
+          code: `function requireAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const [type, token] = header.split(' ');
+  if (type !== 'Bearer' || !token) return res.status(401).json({ error: 'Missing token' });
+
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.user }));`
+        }
+      },
+      operations: {
+        refresh: {
+          title: 'Refresh Token (High-Level)',
+          code: `// 1) login -> issue accessToken + refreshToken
+// 2) client uses accessToken until it expires
+// 3) client calls /refresh with refreshToken cookie
+// 4) server verifies refreshToken + rotates it
+// 5) server issues a new accessToken`
+        },
+        cookies: {
+          title: 'Secure Cookie Settings (Refresh Token)',
+          code: `res.cookie('refreshToken', refreshToken, {
+  httpOnly: true,
+  secure: true,       // only over HTTPS
+  sameSite: 'lax',
+  path: '/api/auth/refresh'
+});`
+        }
+      },
+      examples: {
+        login: {
+          title: 'Login Route (Example Shape)',
+          code: `app.post('/api/auth/login', async (req, res) => {
+  // 1) validate credentials
+  // 2) create access + refresh tokens
+  // 3) set refresh token as httpOnly cookie
+  // 4) return access token
+  res.json({ accessToken });
+});`
+        }
+      },
+      mistakes: [
+        'Storing refresh tokens in localStorage (XSS risk)',
+        'Using long-lived access tokens (hard to revoke)',
+        'Not rotating refresh tokens (replay risk)',
+        'Not validating token expiry / issuer / audience when needed',
+        'Using weak JWT secrets or leaking secrets in logs',
+        'Forgetting to handle logout (server-side revocation strategy)'
+      ],
+      tips: [
+        'Keep access tokens short-lived (10–30 minutes)',
+        'Store refresh tokens in httpOnly cookies',
+        'Implement refresh-token rotation and revocation',
+        'Use HTTPS everywhere; set secure cookies in production',
+        'Return consistent 401/403 responses',
+        'Log auth failures with request IDs (no secrets)'
+      ],
+      relatedCheatsheets: ['node-express', 'javascript'],
+      relatedRoadmaps: ['backend-developer', 'full-stack-developer'],
+      relatedDSA: []
+    }
+  });
+
+  console.log('✅ Created JWT Authentication cheatsheet');
+
+  // ============================================================================
+  // DEVOPS
+  // ============================================================================
+
+  // Git Cheatsheet
+  await prisma.cheatsheet.create({
+    data: {
+      categoryId: categories[4].id,
+      slug: 'git',
+      title: 'Git',
+      subtitle: 'Daily version control commands and workflows',
+      description: 'Branching, merging, rebasing, undo, and collaboration essentials',
+      icon: '🔀',
+      difficulty: 'Beginner',
+      tags: ['git', 'github', 'version-control', 'branching', 'workflow'],
+      popularity: 99,
+      overview: `Git tracks changes to files over time. Most workflows revolve around commits, branches, and merges.
+
+**Mental model:**
+- working tree: your files
+- index (staging area): what will be committed
+- HEAD: your current commit`,
+      syntax: {
+        basics: {
+          title: 'Basics',
+          code: `git status
+git add .
+git commit -m "message"
+
+git log --oneline --graph --decorate --all
+
+git diff            # working tree vs index
+git diff --staged   # index vs HEAD`
+        },
+        branches: {
+          title: 'Branches',
+          code: `git branch
+git switch -c feature/login
+
+git switch main
+git merge feature/login
+
+git rebase main     # replay commits on top of main`
+        },
+        remotes: {
+          title: 'Remotes',
+          code: `git remote -v
+git fetch origin
+git pull
+git push -u origin feature/login`
+        }
+      },
+      operations: {
+        undo: {
+          title: 'Undo Safely',
+          code: `git restore file.txt
+git restore --staged file.txt
+
+git revert <commit>       # safe: makes a new commit
+
+git reset --soft <hash>   # keep changes staged
+git reset --mixed <hash>  # keep changes unstaged
+git reset --hard <hash>   # destructive: wipes changes`
+        },
+        stash: {
+          title: 'Stash',
+          code: `git stash
+git stash list
+git stash pop
+git stash apply stash@{0}`
+        }
+      },
+      examples: {
+        featureFlow: {
+          title: 'Feature Branch Workflow',
+          code: `git switch -c feature/x
+// work...
+git add .
+git commit -m "Implement x"
+
+git fetch origin
+git rebase origin/main
+git push -u origin feature/x
+// open PR`
+        },
+        recover: {
+          title: 'Recover a Lost Commit (reflog)',
+          code: `git reflog
+git checkout <hash>
+
+// or create a branch from it
+git switch -c recover-branch <hash>`
+        }
+      },
+      mistakes: [
+        'Using `git reset --hard` without understanding the impact',
+        'Committing secrets (tokens, API keys) to the repo',
+        'Making huge commits that are hard to review',
+        'Force-pushing shared branches without coordination',
+        'Ignoring merge conflicts instead of resolving carefully',
+        'Not using `reflog` to recover from mistakes'
+      ],
+      tips: [
+        'Commit small, logical changes with clear messages',
+        'Prefer `revert` over `reset` on shared branches',
+        'Use `reflog` when something “disappears”',
+        'Rebase your feature branch before opening a PR',
+        'Add a `.gitignore` early',
+        'Set up pre-commit hooks to prevent mistakes'
+      ],
+      relatedCheatsheets: ['docker'],
+      relatedRoadmaps: ['devops-engineer', 'full-stack-developer'],
+      relatedDSA: []
+    }
+  });
+
+  console.log('✅ Created Git cheatsheet');
+
+  // Docker Cheatsheet
+  await prisma.cheatsheet.create({
+    data: {
+      categoryId: categories[4].id,
+      slug: 'docker',
+      title: 'Docker',
+      subtitle: 'Containers, images, Dockerfiles, and Compose',
+      description: 'Most-used Docker commands + Dockerfile patterns for apps',
+      icon: '🐳',
+      difficulty: 'Intermediate',
+      tags: ['docker', 'containers', 'dockerfile', 'compose', 'devops'],
+      popularity: 96,
+      overview: `Docker packages your app + dependencies into an image.
+
+**Image** = template
+**Container** = running instance
+
+Use Docker for reproducible dev environments and predictable deployments.`,
+      syntax: {
+        commands: {
+          title: 'Commands You Use Daily',
+          code: `docker build -t myapp:dev .
+docker run --rm -p 5000:5000 myapp:dev
+
+docker ps
+docker logs <container>
+docker exec -it <container> sh
+
+docker images
+docker rm -f <container>
+docker rmi <image>`
+        },
+        dockerfile: {
+          title: 'Dockerfile Basics',
+          code: `FROM node:20-alpine
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+EXPOSE 5000
+CMD ["node", "index.js"]`
+        },
+        compose: {
+          title: 'Docker Compose',
+          code: `docker compose up -d
+docker compose logs -f
+docker compose down
+docker compose build`
+        }
+      },
+      operations: {
+        multistage: {
+          title: 'Multi-stage Builds (Smaller Images)',
+          code: `# build stage
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# runtime stage
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
+CMD ["node", "dist/index.js"]`
+        },
+        cleanup: {
+          title: 'Cleanup',
+          code: `docker system prune
+docker volume prune
+docker network prune`
+        }
+      },
+      examples: {
+        nodePostgres: {
+          title: 'Node + Postgres (Compose)',
+          code: `services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db`
+        }
+      },
+      mistakes: [
+        'Forgetting `.dockerignore` and copying node_modules',
+        'Using `latest` tags (non-reproducible builds)',
+        'Running everything as root',
+        'Not exposing the correct ports or binding to 0.0.0.0',
+        'Rebuilding layers unnecessarily (slow builds)',
+        'Not pinning dependencies (npm install vs npm ci)'
+      ],
+      tips: [
+        'Add `.dockerignore` to keep builds fast',
+        'Use multi-stage builds for production',
+        'Pin image versions (node:20-alpine, postgres:16)',
+        'Prefer `npm ci` for deterministic installs',
+        'Bind servers to 0.0.0.0 inside containers',
+        'Use health checks + proper restart policies'
+      ],
+      relatedCheatsheets: ['git', 'sql'],
+      relatedRoadmaps: ['devops-engineer', 'backend-developer', 'full-stack-developer'],
+      relatedDSA: []
+    }
+  });
+
+  console.log('✅ Created Docker cheatsheet');
+
+  // ============================================================================
+  // AI/ML
+  // ============================================================================
+
+  // NumPy Cheatsheet
+  await prisma.cheatsheet.create({
+    data: {
+      categoryId: categories[5].id,
+      slug: 'numpy',
+      title: 'NumPy',
+      subtitle: 'Fast n-dimensional arrays for Python',
+      description: 'Array creation, indexing, broadcasting, and vectorized math',
+      icon: '🔢',
+      difficulty: 'Beginner',
+      tags: ['python', 'numpy', 'arrays', 'math', 'vectorization'],
+      popularity: 95,
+      overview: `NumPy is the foundation for most Python data/ML libraries.
+
+**Why it matters:**
+- fast vectorized operations
+- consistent shape/dtype semantics
+- common input format for ML pipelines`,
+      syntax: {
+        create: {
+          title: 'Create Arrays',
+          code: `import numpy as np
+
+a = np.array([1, 2, 3])
+z = np.zeros((2, 3))
+o = np.ones((2, 3))
+r = np.arange(0, 10, 2)     # 0,2,4,6,8
+lin = np.linspace(0, 1, 5)  # 0..1 inclusive
+
+rand = np.random.randn(3, 2)
+rand_int = np.random.randint(0, 10, size=(2, 2))`
+        },
+        shape: {
+          title: 'Shape + Reshape',
+          code: `x = np.arange(12)
+x = x.reshape(3, 4)
+
+x.T              # transpose view
+x.shape          # (3, 4)
+x.astype(np.float32)`
+        },
+        indexing: {
+          title: 'Indexing + Masking',
+          code: `x = np.array([10, 20, 30, 40])
+x[0]        # 10
+x[1:3]      # [20, 30]
+
+mask = x >= 30
+x[mask]     # [30, 40]
+
+m = np.arange(9).reshape(3, 3)
+m[:, 0]     # first column
+m[1, :]     # second row`
+        }
+      },
+      operations: {
+        broadcasting: {
+          title: 'Broadcasting',
+          code: `X = np.random.randn(5, 3)
+mu = X.mean(axis=0)      # (3,)
+sigma = X.std(axis=0)    # (3,)
+
+X_norm = (X - mu) / (sigma + 1e-8)`
+        },
+        stats: {
+          title: 'Stats (Axis Matters)',
+          code: `x = np.arange(12).reshape(3, 4)
+
+x.sum()          # all
+x.sum(axis=0)    # per column
+x.sum(axis=1)    # per row
+
+x.mean(axis=0)
+x.max(axis=1)`
+        },
+        linalg: {
+          title: 'Linear Algebra',
+          code: `A = np.random.randn(3, 3)
+b = np.random.randn(3)
+
+Ax = A @ b
+dot = np.dot(b, b)
+
+invA = np.linalg.inv(A)
+eigvals, eigvecs = np.linalg.eig(A)`
+        }
+      },
+      examples: {
+        standardize: {
+          title: 'Standardize Features',
+          code: `def standardize(X):
+    mu = X.mean(axis=0)
+    sigma = X.std(axis=0)
+    return (X - mu) / (sigma + 1e-8)
+
+X = np.random.randn(100, 10)
+Xz = standardize(X)`
+        }
+      },
+      mistakes: [
+        'Mixing Python lists and NumPy arrays (unexpected behavior)',
+        'Shape mismatches (check .shape early)',
+        'Accidentally creating views when you need copies (or vice versa)',
+        'Using Python loops instead of vectorized ops (slow)',
+        'Ignoring dtype (int vs float) issues',
+        'Forgetting axis in reductions (wrong results)'
+      ],
+      tips: [
+        'Print shapes at every pipeline step while debugging',
+        'Prefer vectorized operations over loops',
+        'Use boolean masks for filtering',
+        'Use broadcasting to avoid manual loops',
+        'Use float32/float64 consistently in ML pipelines',
+        'Seed RNG for reproducibility in experiments'
+      ],
+      relatedCheatsheets: ['python', 'pandas', 'sklearn'],
+      relatedRoadmaps: ['data-scientist', 'ai-ml-engineer'],
+      relatedDSA: []
+    }
+  });
+
+  console.log('✅ Created NumPy cheatsheet');
+
+  // Pandas Cheatsheet
+  await prisma.cheatsheet.create({
+    data: {
+      categoryId: categories[5].id,
+      slug: 'pandas',
+      title: 'Pandas',
+      subtitle: 'DataFrames for cleaning and analyzing tabular data',
+      description: 'Selection, filtering, groupby, merge, missing values, and datetime',
+      icon: '🐼',
+      difficulty: 'Intermediate',
+      tags: ['python', 'pandas', 'dataframe', 'data-cleaning', 'etl'],
+      popularity: 96,
+      overview: `Pandas is the go-to library for working with CSV/Parquet-like data.
+
+**Use it for:**
+- cleaning messy data
+- joins/merges and aggregations
+- feature engineering for ML
+
+Tip: prefer vectorized operations (built-ins) over row-wise apply where possible.`,
+      syntax: {
+        load: {
+          title: 'Load Data',
+          code: `import pandas as pd
+
+df = pd.read_csv('data.csv')
+df = pd.read_parquet('data.parquet')
+
+df.head()
+df.info()
+df.describe()`
+        },
+        select: {
+          title: 'Select + Filter',
+          code: `# columns
+df['col']
+df[['a', 'b']]
+
+# rows by label/index
+df.loc[df['age'] >= 18, ['name', 'age']]
+
+# rows by integer position
+df.iloc[0:5, 0:3]
+
+# boolean filters
+adult = df[df['age'] >= 18]`
+        },
+        missing: {
+          title: 'Missing Values',
+          code: `df.isna().sum()
+
+df = df.dropna(subset=['email'])
+df['age'] = df['age'].fillna(df['age'].median())`
+        }
+      },
+      operations: {
+        groupby: {
+          title: 'GroupBy',
+          code: `# count per group
+df.groupby('country')['id'].count()
+
+# multiple aggregations
+df.groupby('country').agg({
+  'salary': ['mean', 'median'],
+  'id': 'count'
+})`
+        },
+        merge: {
+          title: 'Merge / Join',
+          code: `users = pd.DataFrame({'id':[1,2], 'name':['a','b']})
+orders = pd.DataFrame({'user_id':[1,1], 'total':[10, 20]})
+
+out = users.merge(orders, left_on='id', right_on='user_id', how='left')
+
+# stack rows
+combined = pd.concat([df1, df2], ignore_index=True)`
+        },
+        datetime: {
+          title: 'Datetime',
+          code: `df['ts'] = pd.to_datetime(df['ts'])
+df['day'] = df['ts'].dt.date
+df['hour'] = df['ts'].dt.hour
+
+# filter by date
+df = df[df['ts'] >= '2026-01-01']`
+        }
+      },
+      examples: {
+        cleaning: {
+          title: 'Quick Cleaning Template',
+          code: `df = df.drop_duplicates()
+df.columns = [c.strip().lower() for c in df.columns]
+
+df['price'] = pd.to_numeric(df['price'], errors='coerce')
+df['price'] = df['price'].fillna(0)
+
+df = df[df['price'] >= 0]`
+        }
+      },
+      mistakes: [
+        'Chained assignment leading to SettingWithCopy warnings',
+        'Using apply row-by-row for simple operations (slow)',
+        'Merging on the wrong key (silent duplication)',
+        'Not handling missing values before modeling',
+        'Assuming datetimes are parsed correctly without checking tz',
+        'Not validating row counts after joins'
+      ],
+      tips: [
+        'Use `df.copy()` before modifying filtered DataFrames',
+        'Check `.shape` before/after merges to catch duplicates',
+        'Prefer vectorized ops (`.str`, `.dt`, `.where`) over apply',
+        'Use Parquet for speed and type stability when possible',
+        'Treat data validation as a first-class step',
+        'Profile big operations (groupby/merge) on large datasets'
+      ],
+      relatedCheatsheets: ['python', 'numpy', 'sklearn', 'sql'],
+      relatedRoadmaps: ['data-scientist', 'ai-ml-engineer'],
+      relatedDSA: []
+    }
+  });
+
+  console.log('✅ Created Pandas cheatsheet');
+
+  // scikit-learn Cheatsheet
+  await prisma.cheatsheet.create({
+    data: {
+      categoryId: categories[5].id,
+      slug: 'sklearn',
+      title: 'scikit-learn',
+      subtitle: 'Classical ML: pipelines, preprocessing, training, evaluation',
+      description: 'Train/test split, pipelines, cross-validation, and metrics',
+      icon: '🧠',
+      difficulty: 'Intermediate',
+      tags: ['python', 'machine-learning', 'sklearn', 'modeling', 'metrics'],
+      popularity: 93,
+      overview: `scikit-learn is the standard library for classical ML (regression, classification, clustering).
+
+**Best practice:** use Pipelines so preprocessing happens consistently during training and inference.`,
+      syntax: {
+        split: {
+          title: 'Train/Test Split',
+          code: `from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+  X, y, test_size=0.2, random_state=42, stratify=y
+)`
+        },
+        pipeline: {
+          title: 'Pipeline + Preprocessing',
+          code: `from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+
+clf = Pipeline([
+  ('scaler', StandardScaler()),
+  ('model', LogisticRegression(max_iter=200))
+])
+
+clf.fit(X_train, y_train)
+pred = clf.predict(X_test)`
+        },
+        metrics: {
+          title: 'Metrics',
+          code: `from sklearn.metrics import accuracy_score, f1_score, classification_report
+
+print('acc', accuracy_score(y_test, pred))
+print('f1', f1_score(y_test, pred, average='macro'))
+print(classification_report(y_test, pred))`
+        }
+      },
+      operations: {
+        cv: {
+          title: 'Cross-Validation',
+          code: `from sklearn.model_selection import cross_val_score
+
+scores = cross_val_score(clf, X, y, cv=5, scoring='f1_macro')
+print(scores.mean(), scores.std())`
+        },
+        grid: {
+          title: 'Grid Search',
+          code: `from sklearn.model_selection import GridSearchCV
+
+grid = GridSearchCV(
+  clf,
+  param_grid={ 'model__C': [0.1, 1, 10] },
+  cv=5,
+  scoring='f1_macro'
+)
+
+grid.fit(X_train, y_train)
+print('best', grid.best_params_)`
+        }
+      },
+      examples: {
+        saveLoad: {
+          title: 'Save / Load Model (joblib)',
+          code: `import joblib
+
+joblib.dump(clf, 'model.joblib')
+clf2 = joblib.load('model.joblib')`
+        }
+      },
+      mistakes: [
+        'Data leakage (fitting scaler on full dataset)',
+        'Not stratifying splits for classification',
+        'Comparing models without consistent metrics',
+        'Ignoring class imbalance',
+        'Overfitting via repeated hyperparameter tuning on the test set',
+        'Skipping baseline models'
+      ],
+      tips: [
+        'Always use Pipelines to avoid leakage',
+        'Start with simple baselines before complex models',
+        'Use cross-validation for reliable comparisons',
+        'Pick metrics that match the business goal (F1, ROC-AUC, etc.)',
+        'Track experiments (params + metrics) as you iterate',
+        'Validate with a final held-out test set'
+      ],
+      relatedCheatsheets: ['python', 'numpy', 'pandas'],
+      relatedRoadmaps: ['data-scientist', 'ai-ml-engineer'],
+      relatedDSA: []
+    }
+  });
+
+  console.log('✅ Created scikit-learn cheatsheet');
+
+  // ============================================================================
   // DSA
   // ============================================================================
 
@@ -1332,10 +2206,13 @@ function reverse(arr, start, end) {
   console.log('\n✅ All cheatsheets seeded successfully!\n');
   console.log(`📊 Summary:
   - Categories: 7
-  - Cheatsheets: 6
+  - Cheatsheets: 12
   - Programming: Python, JavaScript
   - Frontend: React
+  - Backend: Node.js + Express, JWT Auth
   - Databases: SQL
+  - DevOps: Git, Docker
+  - AI/ML: NumPy, Pandas, scikit-learn
   - DSA: Arrays
   `);
 }

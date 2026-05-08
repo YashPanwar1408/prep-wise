@@ -1,5 +1,29 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+
+function sanitizeSeedString(value) {
+  if (value === null || value === undefined) return value;
+  return String(value)
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\u00A0/g, ' ')               // NBSP
+    .replace(/[\u200B\u200C\u200D]/g, '') // zero-width
+    .replace(/\uFEFF/g, '');               // BOM
+}
+
+function deepSanitizeSeedData(input) {
+  if (typeof input === 'string') return sanitizeSeedString(input);
+  if (Array.isArray(input)) return input.map(deepSanitizeSeedData);
+  if (input && typeof input === 'object') {
+    return Object.fromEntries(
+      Object.entries(input).map(([k, v]) => [k, deepSanitizeSeedData(v)])
+    );
+  }
+  return input;
+}
 
 function createSlug(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -5675,6 +5699,9 @@ async function main() {
       const boilerplate = generateProblemData(problem.title, problem.difficulty, problem.pattern);
       fullData = { ...problem, ...boilerplate };
     }
+
+    // Sanitize seed strings (NBSP/zero-width/BOM/CRLF)
+    fullData = deepSanitizeSeedData(fullData);
 
     const slug = createSlug(fullData.title);
 

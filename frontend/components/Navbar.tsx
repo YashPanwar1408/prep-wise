@@ -8,11 +8,14 @@ export default function Navbar() {
   const { user } = useUser();
   const pathname = usePathname();
 
-  // Don't show navbar on auth or marketing landing page
+  // Don't show navbar on auth, marketing, or static pages
   if (
     pathname === '/' ||
     pathname?.startsWith('/sign-in') ||
-    pathname?.startsWith('/sign-up')
+    pathname?.startsWith('/sign-up') ||
+    pathname?.startsWith('/about') ||
+    pathname?.startsWith('/privacy') ||
+    pathname?.startsWith('/terms')
   ) {
     return null;
   }

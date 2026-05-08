@@ -17,7 +17,7 @@ interface Example {
 interface Solution {
   brute?: {
     intuition: string;
-    algorithm: string;
+    algorithm: string | string[];
     complexity: string | {
       time: string;
       space: string;
@@ -33,7 +33,7 @@ interface Solution {
   };
   optimized?: {
     intuition: string;
-    algorithm: string;
+    algorithm: string | string[];
     complexity: string | {
       time: string;
       space: string;
@@ -361,17 +361,21 @@ export default function SolutionPage() {
                   📝 Algorithm
                 </h3>
                 <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                  {Array.isArray(problem.solutions.brute.algorithm) ? (
-                    <ol className="list-decimal list-inside space-y-2 text-gray-300">
-                      {problem.solutions.brute.algorithm.map((step: string, idx: number) => (
-                        <li key={idx} className="leading-relaxed">{step}</li>
-                      ))}
-                    </ol>
+                  {problem.solutions.brute.algorithm ? (
+                    Array.isArray(problem.solutions.brute.algorithm) ? (
+                      <ol className="list-decimal list-inside space-y-2 text-gray-300">
+                        {problem.solutions.brute.algorithm.map((step: string, idx: number) => (
+                          <li key={idx} className="leading-relaxed">{step}</li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <div
+                        className="problem-content text-gray-300"
+                        dangerouslySetInnerHTML={{ __html: typeof problem.solutions.brute.algorithm === 'string' && problem.solutions.brute.algorithm.includes('<') ? problem.solutions.brute.algorithm : `<p>${problem.solutions.brute.algorithm}</p>` }}
+                      />
+                    )
                   ) : (
-                    <div
-                      className="problem-content text-gray-300"
-                      dangerouslySetInnerHTML={{ __html: typeof problem.solutions.brute.algorithm === 'string' && problem.solutions.brute.algorithm.includes('<') ? problem.solutions.brute.algorithm : `<p>${problem.solutions.brute.algorithm}</p>` }}
-                    />
+                    <p className="text-gray-400">Algorithm not available yet.</p>
                   )}
                 </div>
               </div>
@@ -436,7 +440,10 @@ export default function SolutionPage() {
 
                 <div className="relative group">
                   <button
-                    onClick={() => copyCode(problem.solutions.brute?.code?.[bruteLanguage as keyof typeof problem.solutions.brute.code] || '', 'brute')}
+                    onClick={() => copyCode(
+                      formatCode(problem.solutions.brute?.code?.[bruteLanguage as keyof typeof problem.solutions.brute.code] || '', bruteLanguage),
+                      'brute'
+                    )}
                     className="absolute top-3 right-3 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-gray-300 hover:bg-slate-700 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-2 z-10"
                   >
                     {copiedBrute ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -453,7 +460,6 @@ export default function SolutionPage() {
                       language={LANG_MAP[bruteLanguage] || 'text'}
                       style={vscDarkPlus}
                       customStyle={{ margin: 0, borderRadius: 0, background: 'transparent', fontSize: '0.875rem' }}
-                      wrapLongLines
                     >
                       {formatCode(problem.solutions.brute?.code?.[bruteLanguage as keyof typeof problem.solutions.brute.code] || '// Code not available', bruteLanguage)}
                     </SyntaxHighlighter>
@@ -492,17 +498,21 @@ export default function SolutionPage() {
                   📝 Algorithm
                 </h3>
                 <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4">
-                  {Array.isArray(problem.solutions.optimized.algorithm) ? (
-                    <ol className="list-decimal list-inside space-y-2 text-gray-300">
-                      {problem.solutions.optimized.algorithm.map((step: string, idx: number) => (
-                        <li key={idx} className="leading-relaxed">{step}</li>
-                      ))}
-                    </ol>
+                  {problem.solutions.optimized.algorithm ? (
+                    Array.isArray(problem.solutions.optimized.algorithm) ? (
+                      <ol className="list-decimal list-inside space-y-2 text-gray-300">
+                        {problem.solutions.optimized.algorithm.map((step: string, idx: number) => (
+                          <li key={idx} className="leading-relaxed">{step}</li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <div
+                        className="problem-content text-gray-300"
+                        dangerouslySetInnerHTML={{ __html: typeof problem.solutions.optimized.algorithm === 'string' && problem.solutions.optimized.algorithm.includes('<') ? problem.solutions.optimized.algorithm : `<p>${problem.solutions.optimized.algorithm}</p>` }}
+                      />
+                    )
                   ) : (
-                    <div
-                      className="problem-content text-gray-300"
-                      dangerouslySetInnerHTML={{ __html: typeof problem.solutions.optimized.algorithm === 'string' && problem.solutions.optimized.algorithm.includes('<') ? problem.solutions.optimized.algorithm : `<p>${problem.solutions.optimized.algorithm}</p>` }}
-                    />
+                    <p className="text-gray-400">Algorithm not available yet.</p>
                   )}
                 </div>
               </div>
@@ -567,7 +577,10 @@ export default function SolutionPage() {
 
                 <div className="relative group">
                   <button
-                    onClick={() => copyCode(problem.solutions.optimized?.code?.[optimizedLanguage as keyof typeof problem.solutions.optimized.code] || '', 'optimized')}
+                    onClick={() => copyCode(
+                      formatCode(problem.solutions.optimized?.code?.[optimizedLanguage as keyof typeof problem.solutions.optimized.code] || '', optimizedLanguage),
+                      'optimized'
+                    )}
                     className="absolute top-3 right-3 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-gray-300 hover:bg-slate-700 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-2 z-10"
                   >
                     {copiedOptimized ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -584,7 +597,6 @@ export default function SolutionPage() {
                       language={LANG_MAP[optimizedLanguage] || 'text'}
                       style={vscDarkPlus}
                       customStyle={{ margin: 0, borderRadius: 0, background: 'transparent', fontSize: '0.875rem' }}
-                      wrapLongLines
                     >
                       {formatCode(problem.solutions.optimized?.code?.[optimizedLanguage as keyof typeof problem.solutions.optimized.code] || '// Code not available', optimizedLanguage)}
                     </SyntaxHighlighter>

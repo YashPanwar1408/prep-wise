@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+'use strict';
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+const { PrismaClient } = require('@prisma/client');
 
 function getDatabaseUrlError() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -24,10 +22,9 @@ if (databaseUrlError) {
   throw new Error(`Prisma configuration error: ${databaseUrlError}`);
 }
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-  });
+// Singleton Prisma client for the entire backend process.
+// This avoids creating multiple connection pools (one per route/controller),
+// which can otherwise lead to intermittent 500s on low-connection Postgres tiers.
+const prisma = new PrismaClient();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+module.exports = prisma;

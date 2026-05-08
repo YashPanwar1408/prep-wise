@@ -43,7 +43,7 @@ export default function Home() {
             <div className={`font-bold tracking-tight bg-clip-text text-transparent bg-linear-to-r from-blue-400 to-purple-400 transition-all duration-500 ${
               scrolled ? 'text-lg' : 'text-2xl'
             }`}>
-              DevPath
+              PrepWise
             </div>
             
             {/* Links - Fade out on mobile when scrolled to save space, or keep generic */}
@@ -210,7 +210,7 @@ export default function Home() {
              <div className="w-12 h-12 rounded-xl bg-pink-500/20 flex items-center justify-center text-pink-400 mb-6">
               <Icons.Rocket />
             </div>
-            <h3 className="text-2xl font-bold mb-2">500+ Problems</h3>
+            <h3 className="text-2xl font-bold mb-2">300+ Problems</h3>
             <p className="text-gray-400 text-sm">
               Curated DSA sheets (Striver, Love Babbar) integrated with a powerful code editor and test cases.
             </p>
@@ -220,19 +220,19 @@ export default function Home() {
       </section>
 
       {/* Stats Section */}
-      {/* <section className="py-24 px-6 relative overflow-hidden border-y border-white/5">
+      <section className="py-24 px-6 relative overflow-hidden border-y border-white/5">
         <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 via-transparent to-purple-500/5" />
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
             <div className="text-center">
               <div className="text-5xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-blue-400 to-blue-600 mb-2">
-                10K+
+                1K+
               </div>
               <div className="text-gray-400 text-sm md:text-base">Active Students</div>
             </div>
             <div className="text-center">
               <div className="text-5xl md:text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-purple-400 to-purple-600 mb-2">
-                500+
+                300+
               </div>
               <div className="text-gray-400 text-sm md:text-base">DSA Problems</div>
             </div>
@@ -250,10 +250,10 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section> */}
+      </section>
 
       {/* Testimonials Section */}
-      {/* <section className="py-32 px-6 relative">
+       {/* <section className="py-32 px-6 relative">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-3xl md:text-5xl font-bold mb-6">Loved by Students</h2>
@@ -275,7 +275,7 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600" />
                 <div>
-                  <div className="font-semibold">Sarah Chen</div>
+                  <div className="font-semibold">Sarah Sharma </div>
                   <div className="text-sm text-gray-400">SDE @ Google</div>
                 </div>
               </div>
@@ -318,7 +318,76 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section> */}
+      </section> 
+
+      {/* Roadmaps Section */}
+      <section id="roadmaps" className="py-32 px-6 max-w-7xl mx-auto border-t border-white/5">
+        <div className="text-center mb-20">
+          <h2 className="text-3xl md:text-5xl font-bold mb-6">Structured Roadmaps</h2>
+          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+            Stop wandering. Follow our step-by-step paths to mastery, curated by engineers from top tech companies.
+          </p>
+        </div>
+        <div className="grid md:grid-cols-3 gap-8">
+          {['Frontend Development', 'Backend Development', 'AI & Machine Learning'].map((track, i) => (
+            <div key={i} className="glass-card rounded-2xl p-8 hover:border-blue-500/50 transition-colors group">
+              <div className="text-blue-400 text-xl font-bold mb-4">0{i + 1}</div>
+              <h3 className="text-2xl font-bold mb-4">{track}</h3>
+              <p className="text-gray-400 mb-6">Master the core concepts, build industry-level projects, and crush the specific interview rounds for this role.</p>
+              <Link href="/roadmaps" className="text-blue-400 group-hover:text-blue-300 font-medium flex items-center gap-2">
+                Explore Path <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section> 
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-32 px-6 relative border-t border-white/5">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-20">
+            <h2 className="text-3xl md:text-5xl font-bold mb-6">Simple, Transparent Pricing</h2>
+            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+              Invest in your career. Get access to all premium features, AI interviews, and FAANG-level problem sets.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="glass-card rounded-3xl p-8 border border-white/10">
+              <h3 className="text-2xl font-bold mb-2">Basic</h3>
+              <div className="text-4xl font-bold mb-6">Free</div>
+              <ul className="space-y-4 mb-8 text-gray-400">
+                <li className="flex items-center gap-3"><span className="text-green-400">✓</span> Access to 50 basic DSA problems</li>
+                <li className="flex items-center gap-3"><span className="text-green-400">✓</span> Standard Resume ATS Check</li>
+                <li className="flex items-center gap-3"><span className="text-green-400">✓</span> Community Support</li>
+              </ul>
+              <Link href="/sign-in">
+                <button className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors font-medium border border-white/10">
+                  Get Started
+                </button>
+              </Link>
+            </div>
+            <div className="glass-card rounded-3xl p-8 border-2 border-blue-500 relative transform md:-translate-y-4 shadow-[0_0_40px_rgba(59,130,246,0.2)]">
+              <div className="absolute -top-4 inset-x-0 flex justify-center">
+                <span className="bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Most Popular</span>
+              </div>
+              <h3 className="text-2xl font-bold mb-2">Pro</h3>
+              <div className="text-4xl font-bold mb-2">$19<span className="text-xl text-gray-400 font-normal">/mo</span></div>
+              <p className="text-blue-400 text-sm mb-6">Cancel anytime</p>
+              <ul className="space-y-4 mb-8 text-gray-300">
+                <li className="flex items-center gap-3"><span className="text-blue-400">✓</span> Unlimited AI Mock Interviews</li>
+                <li className="flex items-center gap-3"><span className="text-blue-400">✓</span> 500+ Premium DSA Solutions</li>
+                <li className="flex items-center gap-3"><span className="text-blue-400">✓</span> Deep Resume ATS Analysis & Feedback</li>
+                <li className="flex items-center gap-3"><span className="text-blue-400">✓</span> All Premium Roadmaps</li>
+              </ul>
+              <Link href="/sign-in">
+                <button className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition-colors font-bold text-white">
+                  Upgrade to Pro
+                </button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* CTA Section */}
       <section className="py-32 px-6 relative overflow-hidden">
@@ -328,7 +397,7 @@ export default function Home() {
             Ready to <span className="text-blue-400">Launch?</span>
           </h2>
           <p className="text-xl text-gray-400 mb-12 max-w-2xl mx-auto">
-            Join 10,000+ students who have already secured their dream jobs using DevPath.
+            Join 10,000+ students who have already secured their dream jobs using PrepWise.
           </p>
           <Link href="/sign-in">
             <button className="px-12 py-5 rounded-full bg-white text-black font-bold text-xl hover:scale-105 transition-transform shadow-[0_0_40px_-10px_rgba(255,255,255,0.5)]">
@@ -344,19 +413,19 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
-                D
+                P
               </div>
-              <span className="font-bold text-2xl bg-clip-text text-transparent bg-linear-to-r from-blue-400 to-purple-500">DevPath</span>
+              <span className="font-bold text-2xl bg-clip-text text-transparent bg-linear-to-r from-blue-400 to-purple-500">PrepWise</span>
             </div>
             <div className="flex gap-8 text-sm text-gray-400">
-              <Link href="#" className="hover:text-blue-400 transition-colors">Privacy</Link>
-              <Link href="#" className="hover:text-blue-400 transition-colors">Terms</Link>
-              <Link href="#" className="hover:text-blue-400 transition-colors">Twitter</Link>
-              <Link href="#" className="hover:text-blue-400 transition-colors">GitHub</Link>
+              <Link href="/about" className="hover:text-blue-400 transition-colors">About</Link>
+              <Link href="/privacy" className="hover:text-blue-400 transition-colors">Privacy</Link>
+              <Link href="/terms" className="hover:text-blue-400 transition-colors">Terms</Link>
+              <Link href="https://github.com/YashPanwar1408/prep-wise.git" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">GitHub</Link>
             </div>
           </div>
           <div className="text-center text-gray-500 text-sm border-t border-white/5 pt-8">
-            © 2026 DevPath Inc. All rights reserved.
+            © 2026 PrepWise Inc. All rights reserved.
           </div>
         </div>
       </footer>

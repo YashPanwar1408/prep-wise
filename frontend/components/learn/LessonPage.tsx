@@ -255,25 +255,77 @@ const slugToCategoryMap: Record<string, string> = {
   'data-structures-qa': 'python-interview',
   'ml-interview-qa': 'python-interview',
   'coding-challenges': 'python-interview',
+  'planning-reasoning': 'agentic-ai',
+  'cicd-ml': 'mlops',
+  'support-vector-machines': 'machine-learning',
+  'k-nearest-neighbors': 'machine-learning',
+  'dalle': 'genai',
+  'built-in-functions': 'python-reference',
+  'data-types-reference': 'python-reference',
+  'scikit-learn-reference': 'module-reference',
+  'how-to-setup-environment': 'python-howto',
+  'how-to-debug-code': 'python-howto',
+  'how-to-handle-errors': 'python-howto',
+  'how-to-optimize-code': 'python-howto',
+};
+
+const fullStackCategoryTitleToPath: Record<string, string> = {
+  'HTML': 'html',
+  'CSS': 'css',
+  'JavaScript': 'javascript',
+  'Node.js': 'node',
+  'React': 'react',
+  'Next.js': 'next',
+  'Databases': 'databases',
+  'Backend Architecture': 'backend-architecture',
+  'DevOps': 'devops',
+  'Cloud': 'cloud',
+  'System Design': 'system-design',
+  'Security': 'security',
+  'Testing': 'testing',
+  'Performance': 'performance',
+  'Mobile': 'mobile',
+  'Professional Tools': 'professional-tools',
 };
 
 function getCategoryPathFromSlug(slug: string): string {
   // Remove 'aiml-' prefix if present
   const cleanSlug = slug.replace('aiml-', '');
-  
-  // Try to find exact match or prefix match
+
+  // Try to find the most specific (longest) prefix match.
+  let bestMatch = '';
+  let bestCategory = '';
   for (const [key, category] of Object.entries(slugToCategoryMap)) {
-    if (cleanSlug.startsWith(key)) {
-      return category;
+    if (cleanSlug.startsWith(key) && key.length > bestMatch.length) {
+      bestMatch = key;
+      bestCategory = category;
     }
   }
-  
+
+  if (bestCategory) {
+    return bestCategory;
+  }
+
   // Fallback: extract first part of slug
   const parts = cleanSlug.split('-');
   return parts[0];
 }
 
+function getCategoryPathForNavItem(domainSlug: string, navItem: { slug: string; categoryTitle?: string } | null): string {
+  if (!navItem) return '';
+
+  if (domainSlug === 'full-stack') {
+    const categoryTitle = navItem.categoryTitle;
+    if (categoryTitle && fullStackCategoryTitleToPath[categoryTitle]) {
+      return fullStackCategoryTitleToPath[categoryTitle];
+    }
+  }
+
+  return getCategoryPathFromSlug(navItem.slug);
+}
+
 export default async function LessonPage({ slug, categoryPath, domainSlug = 'full-stack' }: LessonPageProps) {
+  void categoryPath;
   const data = await fetchLearnTopic(domainSlug, slug);
   
   if (!data) {
@@ -303,7 +355,7 @@ export default async function LessonPage({ slug, categoryPath, domainSlug = 'ful
         <div className="flex justify-between items-center pt-8 border-t border-border">
           {navigation.prev ? (
             <Link
-              href={`/learn/${domainSlug}/${getCategoryPathFromSlug(navigation.prev.slug)}/${navigation.prev.slug}`}
+              href={`/learn/${domainSlug}/${getCategoryPathForNavItem(domainSlug, navigation.prev)}/${navigation.prev.slug}`}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <span>←</span>
@@ -318,7 +370,7 @@ export default async function LessonPage({ slug, categoryPath, domainSlug = 'ful
           
           {navigation.next ? (
             <Link
-              href={`/learn/${domainSlug}/${getCategoryPathFromSlug(navigation.next.slug)}/${navigation.next.slug}`}
+              href={`/learn/${domainSlug}/${getCategoryPathForNavItem(domainSlug, navigation.next)}/${navigation.next.slug}`}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-right"
             >
               <div>

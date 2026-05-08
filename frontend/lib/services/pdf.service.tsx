@@ -236,6 +236,41 @@ const ResumeDocument = ({ resume, mode }: { resume: Resume; mode: 'ats' | 'recru
           ))}
         </View>
 
+        {/* Projects */}
+        {resume.projects && resume.projects.length > 0 && (
+          <View>
+            <Text style={atsStyles.sectionTitle}>Projects</Text>
+            {resume.projects.map((proj) => {
+              const hasDates = Boolean(proj.startDate || proj.endDate);
+              const dateText = hasDates
+                ? `${proj.startDate || ''}${proj.current ? ' - Present' : proj.endDate ? ` - ${proj.endDate}` : ''}`.trim()
+                : '';
+
+              const bullets = (proj.description || '')
+                .split('\n')
+                .map((b) => b.replace(/^[•-]\s*/, '').trim())
+                .filter(Boolean);
+
+              return (
+                <View key={proj.id} style={{ marginBottom: 10 }}>
+                  <View style={atsStyles.roleRow}>
+                    <Text style={atsStyles.roleTitle}>{proj.title}</Text>
+                    <Text style={atsStyles.dates}>{dateText}</Text>
+                  </View>
+                  {proj.technologies && (
+                    <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Oblique', color: '#333' }}>
+                      {proj.technologies}
+                    </Text>
+                  )}
+                  {bullets.map((b, i) => (
+                    <Text key={i} style={atsStyles.bullet}>• {b}</Text>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        )}
+
         {/* Education */}
         {resume.education.length > 0 && (
           <View>

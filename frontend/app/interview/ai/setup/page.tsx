@@ -38,19 +38,41 @@ export default function AIInterviewSetup() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [existingResumeData, setExistingResumeData] = useState<any>(null);
+  const [resumeSource, setResumeSource] = useState<'file' | 'session' | 'db' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Pre-load parsed resume from sessionStorage (set by the resume upload page)
+  // or fall back to latest saved resume from DB
   useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem('resumeData');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setExistingResumeData(parsed);
+    const loadResume = async () => {
+      // 1. Try sessionStorage first
+      try {
+        const raw = sessionStorage.getItem('resumeData');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setExistingResumeData(parsed);
+          setResumeSource('session');
+          return;
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // sessionStorage unavailable or invalid
-    }
+
+      // 2. Try DB
+      try {
+        const res = await fetch('/api/resume/latest');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.resume) {
+            setExistingResumeData(data.resume);
+            setResumeSource('db');
+          }
+        }
+      } catch {
+        // no saved resume
+      }
+    };
+    loadResume();
   }, []);
 
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,18 +112,24 @@ export default function AIInterviewSetup() {
 
           // Parse with Grok (server-side)
           toast.info('Analyzing resume with AI...');
-          resumeData = await parseResumeWithGrok(extractedText);
-
-          toast.success('Resume parsed successfully!');
+          try {
+            resumeData = await parseResumeWithGrok(extractedText);
+            setResumeSource('file');
+            toast.success('Resume parsed successfully!');
+          } catch (parseErr) {
+            console.warn('Grok parse failed, continuing without parsed resume:', parseErr);
+            toast.warning('Resume AI parse failed (rate limit). Your interview will use general questions.');
+            // Still create the interview — vapi-config will try DB fallback
+          }
         } catch (error) {
           console.error('Parse resume error:', error);
           toast.error('Failed to parse resume, continuing without it');
           resumeData = null;
         }
       } else if (existingResumeData) {
-        // Use pre-parsed resume from sessionStorage (uploaded on resume page)
+        // Use pre-parsed resume from sessionStorage or DB
         resumeData = existingResumeData;
-        toast.success('Using your previously uploaded resume');
+        toast.success(resumeSource === 'db' ? 'Using your saved resume' : 'Using your previously uploaded resume');
       } else {
         // Try to fetch existing resume from database
         try {
@@ -207,6 +235,14 @@ export default function AIInterviewSetup() {
             {/* Resume Upload */}
             <div className="space-y-2">
               <Label className="text-white">Upload Resume (Optional)</Label>
+              {existingResumeData && !resumeFile && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-500/10 border border-green-500/30 rounded-lg text-sm">
+                  <span className="text-green-400">✓</span>
+                  <span className="text-green-300">
+                    Resume loaded {resumeSource === 'db' ? 'from your saved profile' : 'from current session'} — AI will use it
+                  </span>
+                </div>
+              )}
               <div className="relative">
                 <input
                   type="file"
@@ -223,7 +259,7 @@ export default function AIInterviewSetup() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                   <span className="text-slate-300">
-                    {resumeFile ? resumeFile.name : 'Click to upload PDF'}
+                    {resumeFile ? resumeFile.name : existingResumeData ? 'Replace resume (optional)' : 'Click to upload PDF'}
                   </span>
                 </label>
               </div>

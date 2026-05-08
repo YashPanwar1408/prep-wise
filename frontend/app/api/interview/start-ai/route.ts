@@ -7,7 +7,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createVapiAssistant } from '@/lib/vapi';
 import { createStreamCall } from '@/lib/stream';
 
 export async function POST(request: Request) {
@@ -47,22 +46,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create VAPI assistant
-    let assistantId;
-    try {
-      assistantId = await createVapiAssistant({
-        domain: interview.domain,
-        duration: interview.duration,
-        resumeData: interview.resumeData || undefined,
-        jobDescription: interview.jobDescription || undefined,
-      });
-    } catch (vapiError) {
-      console.error('VAPI assistant creation failed:', vapiError);
-      return NextResponse.json(
-        { error: 'Failed to create AI assistant. Please try again.' },
-        { status: 500 }
-      );
-    }
+    // VAPI Assistant is now handled entirely on the frontend using transient configs.
 
     // Create Stream call
     const callId = `interview-${interviewId}`;
@@ -87,7 +71,6 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       interview: updatedInterview,
-      assistantId,
       callId,
     });
   } catch (error) {

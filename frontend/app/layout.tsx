@@ -4,7 +4,6 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { Toaster } from 'sonner';
 import Navbar from '@/components/Navbar';
 import "./globals.css";
-import "./stream-overrides.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

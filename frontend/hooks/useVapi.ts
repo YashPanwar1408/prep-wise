@@ -13,7 +13,7 @@ export interface VapiMessage {
 }
 
 type VapiClient = {
-  start: (assistantId: string) => Promise<{ id: string }>;
+  start: (assistantIdOrConfig: string | object) => Promise<{ id: string }>;
   stop: () => void;
   setMuted: (muted: boolean) => void;
   send: (payload: unknown) => void;
@@ -43,6 +43,7 @@ export function useVapi(options: UseVapiOptions = {}) {
 
   const vapiRef = useRef<VapiClient | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [transcript, setTranscript] = useState<VapiMessage[]>([]);
   const [callId, setCallId] = useState<string | null>(null);
@@ -69,6 +70,7 @@ export function useVapi(options: UseVapiOptions = {}) {
 
     vapi.on('call-end', () => {
       setIsConnected(false);
+      setIsSpeaking(false);
       onCallEnd?.();
     });
 
@@ -76,11 +78,21 @@ export function useVapi(options: UseVapiOptions = {}) {
       if (message.type === 'transcript') {
         setTranscript((prev) => [...prev, message]);
       }
+      // Track speaking state
+      if ((message as any).type === 'speech-update') {
+        const m = message as any;
+        if (m.role === 'assistant') {
+          setIsSpeaking(m.status === 'started');
+        }
+      }
       onMessage?.(message);
     });
 
-    vapi.on('error', (error: Error) => {
+    vapi.on('error', (error: any) => {
       console.error('VAPI Error:', error);
+      if (error && typeof error === 'object') {
+        console.error('VAPI Error details:', JSON.stringify(error, null, 2));
+      }
       onError?.(error);
     });
 
@@ -89,14 +101,15 @@ export function useVapi(options: UseVapiOptions = {}) {
         vapiRef.current.stop();
       }
     };
-  }, [onCallStart, onCallEnd, onMessage, onError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Start call with assistant ID
-  const startCall = async (customAssistantId?: string) => {
-    const id = customAssistantId || assistantId;
+  // Start call with assistant ID or configuration object
+  const startCall = async (customAssistantId?: string | object) => {
+    const idOrConfig = customAssistantId || assistantId;
     
-    if (!id) {
-      throw new Error('Assistant ID is required to start call');
+    if (!idOrConfig) {
+      throw new Error('Assistant ID or configuration is required to start call');
     }
 
     if (!vapiRef.current) {
@@ -104,8 +117,10 @@ export function useVapi(options: UseVapiOptions = {}) {
     }
 
     try {
-      const call = await vapiRef.current.start(id);
-      setCallId(call.id);
+      const call = await vapiRef.current.start(idOrConfig);
+      if (call && call.id) {
+        setCallId(call.id);
+      }
       return call;
     } catch (error) {
       console.error('Failed to start VAPI call:', error);
@@ -147,6 +162,7 @@ export function useVapi(options: UseVapiOptions = {}) {
     toggleMute,
     sendMessage,
     isConnected,
+    isSpeaking,
     isMuted,
     transcript,
     callId,

@@ -36,19 +36,6 @@ export async function createStreamCall(callId: string, userId: string) {
   await call.getOrCreate({
     data: {
       created_by_id: userId,
-      settings_override: {
-        audio: { 
-          mic_default_on: true,
-          speaker_default_on: true,
-          default_device: 'speaker',
-        },
-        video: { 
-          camera_default_on: true,
-        },
-        recording: {
-          mode: 'disabled',
-        },
-      },
     },
   });
   

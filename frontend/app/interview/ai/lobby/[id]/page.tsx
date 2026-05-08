@@ -16,6 +16,7 @@ import {
 } from '@stream-io/video-react-sdk';
 import '@stream-io/video-react-sdk/dist/css/styles.css';
 import { MeetingSetup } from '@/components/interview/MeetingSetup';
+import { getOrCreateStreamClient } from '@/lib/stream-client';
 import { toast } from 'sonner';
 
 export default function AIInterviewLobby() {
@@ -28,7 +29,6 @@ export default function AIInterviewLobby() {
   const [call, setCall] = useState<ReturnType<StreamVideoClient['call']> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const hasInitialized = useRef(false);
-  const clientRef = useRef<StreamVideoClient | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -49,17 +49,16 @@ export default function AIInterviewLobby() {
         const { token, apiKey, userId } = await tokenRes.json();
 
         // Initialize Stream client
-        const streamClient = new StreamVideoClient({
+        const streamClient = getOrCreateStreamClient({
           apiKey,
+          token,
           user: {
             id: userId,
             name: user.fullName || user.username || 'User',
             image: user.imageUrl,
           },
-          token,
         });
 
-        clientRef.current = streamClient;
         setClient(streamClient);
 
         // Create call but don't join yet - just for device preview
@@ -76,12 +75,6 @@ export default function AIInterviewLobby() {
     };
 
     initializeStream();
-
-    return () => {
-      if (clientRef.current) {
-        clientRef.current.disconnectUser().catch(console.error);
-      }
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -103,10 +96,10 @@ export default function AIInterviewLobby() {
         throw new Error('Failed to start AI interview');
       }
 
-      const { assistantId } = await response.json();
+      await response.json();
 
-      // Navigate to room with assistant ID
-      router.push(`/interview/ai/room/${interviewId}?assistantId=${assistantId}`);
+      // Navigate to room
+      router.push(`/interview/ai/room/${interviewId}`);
     } catch (error) {
       console.error('Error starting interview:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to start interview');
@@ -135,7 +128,7 @@ export default function AIInterviewLobby() {
   return (
     <StreamVideo client={client}>
       <StreamCall call={call}>
-        <MeetingSetup call={call} onJoin={handleJoin} />
+        <MeetingSetup onJoin={handleJoin} />
       </StreamCall>
     </StreamVideo>
   );

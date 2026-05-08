@@ -15,8 +15,8 @@ import {
   StreamVideoClient,
 } from '@stream-io/video-react-sdk';
 import '@stream-io/video-react-sdk/dist/css/styles.css';
-import '@/app/stream-overrides.css';
 import { MeetingRoom } from '@/components/interview/MeetingRoom';
+import { disconnectStreamClient, getOrCreateStreamClient } from '@/lib/stream-client';
 import { toast } from 'sonner';
 
 export default function AIInterviewRoom() {
@@ -35,6 +35,7 @@ export default function AIInterviewRoom() {
   const [isLoading, setIsLoading] = useState(true);
   const hasInitialized = useRef(false);
   const clientRef = useRef<StreamVideoClient | null>(null);
+  const callRef = useRef<ReturnType<StreamVideoClient['call']> | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -53,14 +54,14 @@ export default function AIInterviewRoom() {
 
         const { token, apiKey, userId } = await tokenRes.json();
 
-        const streamClient = new StreamVideoClient({
+        const streamClient = getOrCreateStreamClient({
           apiKey,
+          token,
           user: {
             id: userId,
             name: user.fullName || user.username || 'User',
             image: user.imageUrl,
           },
-          token,
         });
 
         clientRef.current = streamClient;
@@ -68,16 +69,7 @@ export default function AIInterviewRoom() {
 
         const callId = `interview-${interviewId}`;
         const streamCall = streamClient.call('default', callId);
-
-        // Prompt for media permissions early to avoid device-manager races.
-        if (navigator.mediaDevices?.getUserMedia) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            stream.getTracks().forEach((t) => t.stop());
-          } catch (err) {
-            console.warn('Media permission request failed:', err);
-          }
-        }
+        callRef.current = streamCall;
 
         // Join the call in the room (the lobby is only for device preview).
         // Using { create: true } keeps this route resilient if the call
@@ -97,9 +89,8 @@ export default function AIInterviewRoom() {
 
     return () => {
       // Leave call and disconnect client on unmount
-      if (clientRef.current) {
-        clientRef.current.disconnectUser().catch(console.error);
-      }
+      callRef.current?.leave().catch(() => undefined);
+      disconnectStreamClient(clientRef.current).catch(() => undefined);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);

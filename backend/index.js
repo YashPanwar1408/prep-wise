@@ -21,6 +21,7 @@ const learnRoutes = require('./routes/learn');
 const roadmapsRoutes = require('./routes/roadmaps');
 const cheatsheetsRoutes = require('./routes/cheatsheets');
 const executionRoutes = require('./routes/execution.routes');
+const prisma = require('./lib/prisma');
 
 // Load environment variables
 dotenv.config();
@@ -57,6 +58,27 @@ app.get('/api/health', (req, res) => {
 app.get('/', (req, res) => {
   res.json({ message: 'Interview Platform API' });
 });
+
+// Graceful shutdown (prevents lingering DB connections on dev restarts)
+async function shutdown(signal) {
+  try {
+    console.log(`\n[shutdown] Received ${signal}. Disconnecting Prisma...`);
+    await prisma.$disconnect();
+  } catch (err) {
+    console.error('[shutdown] Prisma disconnect failed:', err?.message || err);
+  } finally {
+    // If nodemon triggered a restart, re-emit the signal so it can continue.
+    if (signal === 'SIGUSR2') {
+      process.kill(process.pid, 'SIGUSR2');
+      return;
+    }
+    process.exit(0);
+  }
+}
+
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGUSR2', () => void shutdown('SIGUSR2'));
 
 // Start server
 app.listen(PORT, () => {

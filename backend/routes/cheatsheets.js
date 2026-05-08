@@ -1,8 +1,6 @@
 const express = require('express');
-const { PrismaClient } = require('@prisma/client');
-
 const router = express.Router();
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // ============================================================================
 // GET /api/cheatsheets - Get all categories with cheatsheet counts
@@ -33,95 +31,6 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching cheatsheet categories:', error);
     res.status(500).json({ error: 'Failed to fetch cheatsheet categories' });
-  }
-});
-
-// ============================================================================
-// GET /api/cheatsheets/:categorySlug - Get category with all cheatsheets list
-// ============================================================================
-router.get('/:categorySlug', async (req, res) => {
-  try {
-    const { categorySlug } = req.params;
-
-    const category = await prisma.cheatsheetCategory.findUnique({
-      where: { slug: categorySlug },
-      include: {
-        cheatsheets: {
-          select: {
-            id: true,
-            slug: true,
-            title: true,
-            subtitle: true,
-            description: true,
-            icon: true,
-            difficulty: true,
-            tags: true,
-            popularity: true
-          },
-          orderBy: { popularity: 'desc' }
-        }
-      }
-    });
-
-    if (!category) {
-      return res.status(404).json({ error: 'Category not found' });
-    }
-
-    res.json(category);
-  } catch (error) {
-    console.error('Error fetching cheatsheets for category:', error);
-    res.status(500).json({ error: 'Failed to fetch cheatsheets' });
-  }
-});
-
-// ============================================================================
-// GET /api/cheatsheets/:categorySlug/:cheatsheetSlug - Get full cheatsheet
-// ============================================================================
-router.get('/:categorySlug/:cheatsheetSlug', async (req, res) => {
-  try {
-    const { categorySlug, cheatsheetSlug } = req.params;
-
-    // First, find the category
-    const category = await prisma.cheatsheetCategory.findUnique({
-      where: { slug: categorySlug }
-    });
-
-    if (!category) {
-      return res.status(404).json({ error: 'Category not found' });
-    }
-
-    // Then find the cheatsheet
-    const cheatsheet = await prisma.cheatsheet.findFirst({
-      where: {
-        slug: cheatsheetSlug,
-        categoryId: category.id
-      },
-      include: {
-        category: {
-          select: {
-            slug: true,
-            title: true,
-            icon: true,
-            color: true
-          }
-        }
-      }
-    });
-
-    if (!cheatsheet) {
-      return res.status(404).json({ error: 'Cheatsheet not found' });
-    }
-
-    // Increment popularity (view count)
-    await prisma.cheatsheet.update({
-      where: { id: cheatsheet.id },
-      data: { popularity: cheatsheet.popularity + 1 }
-    });
-
-    res.json(cheatsheet);
-  } catch (error) {
-    console.error('Error fetching cheatsheet:', error);
-    res.status(500).json({ error: 'Failed to fetch cheatsheet' });
   }
 });
 
@@ -228,6 +137,93 @@ router.get('/difficulty/:level', async (req, res) => {
   } catch (error) {
     console.error('Error fetching cheatsheets by difficulty:', error);
     res.status(500).json({ error: 'Failed to fetch cheatsheets' });
+  }
+});
+
+// ============================================================================
+// GET /api/cheatsheets/:categorySlug - Get category with all cheatsheets list
+// ============================================================================
+router.get('/:categorySlug', async (req, res) => {
+  try {
+    const { categorySlug } = req.params;
+
+    const category = await prisma.cheatsheetCategory.findUnique({
+      where: { slug: categorySlug },
+      include: {
+        cheatsheets: {
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            subtitle: true,
+            description: true,
+            icon: true,
+            difficulty: true,
+            tags: true,
+            popularity: true
+          },
+          orderBy: { popularity: 'desc' }
+        }
+      }
+    });
+
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    res.json(category);
+  } catch (error) {
+    console.error('Error fetching cheatsheets for category:', error);
+    res.status(500).json({ error: 'Failed to fetch cheatsheets' });
+  }
+});
+
+// ============================================================================
+// GET /api/cheatsheets/:categorySlug/:cheatsheetSlug - Get full cheatsheet
+// ============================================================================
+router.get('/:categorySlug/:cheatsheetSlug', async (req, res) => {
+  try {
+    const { categorySlug, cheatsheetSlug } = req.params;
+
+    const category = await prisma.cheatsheetCategory.findUnique({
+      where: { slug: categorySlug }
+    });
+
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    const cheatsheet = await prisma.cheatsheet.findFirst({
+      where: {
+        slug: cheatsheetSlug,
+        categoryId: category.id
+      },
+      include: {
+        category: {
+          select: {
+            slug: true,
+            title: true,
+            icon: true,
+            color: true
+          }
+        }
+      }
+    });
+
+    if (!cheatsheet) {
+      return res.status(404).json({ error: 'Cheatsheet not found' });
+    }
+
+    // Increment popularity (view count) so /popular reflects real usage
+    await prisma.cheatsheet.update({
+      where: { id: cheatsheet.id },
+      data: { popularity: { increment: 1 } }
+    });
+
+    res.json(cheatsheet);
+  } catch (error) {
+    console.error('Error fetching cheatsheet details:', error);
+    res.status(500).json({ error: 'Failed to fetch cheatsheet' });
   }
 });
 

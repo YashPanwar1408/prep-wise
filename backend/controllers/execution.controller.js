@@ -22,15 +22,13 @@
 
 'use strict';
 
-const { PrismaClient } = require('@prisma/client');
 const {
   getJudge0LanguageId,
   submitBatch,
   pollBatchResults,
   mapJudge0Status,
 } = require('../lib/judge0.utils');
-
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // ─── Shared Helpers ────────────────────────────────────────────────────────
 

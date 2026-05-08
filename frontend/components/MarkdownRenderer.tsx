@@ -123,12 +123,12 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
           /* ---------- LISTS ---------- */
           ul: ({ children }) => (
-            <ul className="list-disc list-inside space-y-2 my-4">
+            <ul className="list-disc list-outside pl-6 space-y-2 my-4">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal list-inside space-y-2 my-4">
+            <ol className="list-decimal list-outside pl-6 space-y-2 my-4">
               {children}
             </ol>
           ),

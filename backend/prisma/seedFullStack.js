@@ -1,5 +1,51 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const createPrismaClient = () => new PrismaClient();
+let prisma = createPrismaClient();
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function withPrismaRetry(fn, { retries = 3, baseDelayMs = 200 } = {}) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (e) {
+      attempt += 1;
+
+      const code = e && e.code;
+      const message = e && e.message ? String(e.message) : '';
+      const isConnectionIssue =
+        code === 'P1017' ||
+        code === 'P1001' ||
+        message.includes('Server has closed the connection') ||
+        message.includes('ECONNRESET');
+
+      if (!isConnectionIssue || attempt > retries) {
+        throw e;
+      }
+
+      console.warn(
+        '⚠️ Prisma connection issue (' +
+          (code || 'unknown') +
+          '), retrying ' +
+          attempt +
+          '/' +
+          retries
+      );
+
+      try {
+        await prisma.$disconnect();
+      } catch {
+        // ignore
+      }
+      prisma = createPrismaClient();
+      await sleep(baseDelayMs * attempt);
+    }
+  }
+}
 
 // ==============================================================================
 // 1. HELPER FUNCTIONS
@@ -3615,6 +3661,58 @@ This section is about putting core HTML concepts together in small, practical sn
 ## 4) Practice
 
 Create a single page containing: header/nav, main/article, and footer.
+`;
+    }
+
+    if (lowerTitle === 'html editors') {
+      return `# HTML Editors
+
+You can write HTML in any text editor, but choosing a good editor makes you faster and reduces mistakes.
+
+---
+
+## 1) What an HTML editor should do well
+
+- Syntax highlighting + tag matching
+- Auto-close tags and quotes
+- Formatting (consistent indentation)
+- Emmet expansions
+- Linting (optional) + accessibility hints
+- Integrated terminal and Git support
+
+---
+
+## 2) Popular choices
+
+- VS Code (most common)
+- WebStorm (powerful IDE)
+- Sublime Text / Notepad++ (lightweight)
+
+---
+
+## 3) Emmet example
+
+Type and press Tab:
+
+\`\`\`
+ul>li*3
+\`\`\`
+
+Outputs:
+
+\`\`\`html
+<ul>
+  <li></li>
+  <li></li>
+  <li></li>
+</ul>
+\`\`\`
+
+---
+
+## 4) Practice
+
+Pick one editor, enable formatting, and build a semantic HTML page with a form and a table.
 `;
     }
 
@@ -15935,101 +16033,601 @@ el?.classList.add('ready');
     if (lowerTitle.includes('variable')) {
       return `# ${title}
 
-JavaScript variables store data values that can be referenced and manipulated throughout code. Modern JavaScript provides three keywords for declaring variables: let (block-scoped, mutable), const (block-scoped, immutable reference), and var (function-scoped, legacy). Understanding variable declaration and scoping is fundamental to JavaScript development.
+Variables are **named bindings** to values. In modern JavaScript you’ll mostly use \`const\` and \`let\` (and avoid \`var\`).
 
-Variable names must start with letters, underscores, or dollar signs, followed by letters, digits, underscores, or dollar signs. Naming conventions include camelCase for variables and functions, PascalCase for classes. Descriptive names improve code readability. Reserved keywords cannot be used as variable names.
+---
 
-Let and const introduced in ES6 provide block scoping, preventing many bugs caused by var's function scoping and hoisting behavior. Const prevents reassignment but doesn't make objects immutable - object properties can still change. Developers prefer const by default, using let only when reassignment is necessary, and avoiding var entirely.
+## 1) \`const\` vs \`let\` vs \`var\`
 
-Variable scope determines where variables are accessible. Block scope confines let and const to the nearest curly braces, function scope applies to var. Global variables are accessible everywhere but should be minimized to prevent conflicts. Understanding scope and the temporal dead zone prevents common JavaScript errors.`;
+- \`const\`: cannot be reassigned (preferred default)
+- \`let\`: reassignment allowed (use when needed)
+- \`var\`: function-scoped + hoisted (legacy; avoid)
+
+\`const\` prevents **reassignment**, but objects can still be mutated:
+
+\`\`\`js
+const user = { name: 'A' };
+user.name = 'B'; // ✅ allowed (mutation)
+// user = { name: 'C' }; // ❌ reassignment not allowed
+
+let count = 0;
+count += 1; // ✅
+\`\`\`
+
+---
+
+## 2) Scope rules
+
+- **Block scope**: \`let\` / \`const\` live inside the nearest \`{ }\`
+- **Function scope**: \`var\` lives inside the nearest function
+- **Global scope**: avoid it; it creates collisions and surprises
+
+\`\`\`js
+{
+  const inside = 'only here';
+}
+// inside is not defined
+
+function f() {
+  var alsoInside = 123;
+}
+\`\`\`
+
+---
+
+## 3) Hoisting + the Temporal Dead Zone (TDZ)
+
+- \`var\` is hoisted and becomes \`undefined\` until assignment.
+- \`let\` / \`const\` are hoisted too, but accessing them before the declaration throws (TDZ).
+
+\`\`\`js
+console.log(a); // undefined
+var a = 1;
+
+// console.log(b); // ReferenceError (TDZ)
+let b = 2;
+\`\`\`
+
+---
+
+## 4) Naming guidelines
+
+- Prefer descriptive \`camelCase\`: \`userEmail\`, \`isLoading\`
+- Booleans read well as questions: \`hasAccess\`, \`isAdmin\`
+- Avoid single-letter names except tiny scopes (like \`i\` in loops)
+
+---
+
+## 5) Practice
+
+1) Replace \`var\` with \`const\` / \`let\` in a small script.
+2) Create a bug caused by \`var\` scope, then fix it using \`let\`.
+3) Write \`makeCounter()\` that returns a function which increments a private variable.
+`;
     }
     if (lowerTitle.includes('function')) {
       return `# ${title}
 
-JavaScript functions are reusable blocks of code that perform specific tasks. Functions encapsulate logic, accept parameters, return values, and create modular, maintainable code. Functions are first-class objects in JavaScript, meaning they can be assigned to variables, passed as arguments, and returned from other functions.
+Functions are reusable blocks of code that accept inputs (parameters) and produce outputs (return values). In JavaScript, functions are **first-class**: you can store them in variables, pass them as arguments, and return them from other functions.
 
-Function declarations use the function keyword: function name(params) {}. Function expressions assign functions to variables: const name = function(params) {}. Arrow functions introduced in ES6 provide concise syntax: const name = (params) => {}. Arrow functions have different this binding behavior, important for object methods and callbacks.
+---
 
-Parameters pass data into functions. Default parameters provide fallback values. Rest parameters (...args) collect multiple arguments into an array. Return statements send values back to callers. Functions without explicit returns return undefined. Higher-order functions accept or return other functions, enabling powerful functional programming patterns.
+## 1) Function declaration vs expression vs arrow
 
-Modern JavaScript extensively uses functions for callbacks, promises, event handlers, and component logic. Pure functions return the same output for the same input without side effects, improving testability and predictability. Understanding function scope, closures, and this binding is essential for effective JavaScript development.`;
+\`\`\`js
+function add(a, b) {
+  return a + b;
+}
+
+const sub = function (a, b) {
+  return a - b;
+};
+
+const mul = (a, b) => a * b;
+\`\`\`
+
+Notes:
+- Declarations are hoisted (you can call them before they appear).
+- Arrow functions have different \`this\` behavior (they don’t create their own \`this\`).
+
+---
+
+## 2) Parameters: defaults and rest
+
+\`\`\`js
+function greet(name = 'Anonymous') {
+  return 'Hi ' + name;
+}
+
+function sum(...nums) {
+  return nums.reduce((acc, n) => acc + n, 0);
+}
+\`\`\`
+
+---
+
+## 3) Returning values (and early exits)
+
+\`\`\`js
+function findById(items, id) {
+  for (const item of items) {
+    if (item.id === id) return item;
+  }
+  return null;
+}
+\`\`\`
+
+---
+
+## 4) Closures (the most important pattern)
+
+A closure is when an inner function “remembers” variables from the outer scope.
+
+\`\`\`js
+function makeCounter() {
+  let n = 0;
+  return function () {
+    n += 1;
+    return n;
+  };
+}
+
+const inc = makeCounter();
+inc(); // 1
+inc(); // 2
+\`\`\`
+
+Closures power callbacks, event handlers, memoization, and many React patterns.
+
+---
+
+## 5) Practice
+
+1) Implement \`debounce(fn, ms)\` and \`throttle(fn, ms)\`.
+2) Write \`once(fn)\` that allows a function to run only one time.
+3) Refactor nested loops into small helper functions for readability.
+`;
     }
     if (lowerTitle.includes('objects')) {
       return `# ${title}
 
-JavaScript objects are collections of key-value pairs representing entities with properties and methods. Objects organize related data and functionality, forming the foundation of JavaScript programming. Object literals use curly braces: {key: value}. Properties store data, methods are functions attached to objects.
+Objects group related data and behavior as **key/value pairs**. They’re used everywhere: request payloads, configs, domain models, caches, and more.
 
-Properties are accessed using dot notation (obj.property) or bracket notation (obj['property']). Bracket notation allows dynamic property names and properties with special characters. Methods are functions that belong to objects, accessing object data via this keyword. Object constructors and classes create multiple instances with shared structure.
+---
 
-Modern JavaScript includes powerful object features. Destructuring extracts properties: const {name, age} = person. Spread operator copies objects: {...obj}. Object.keys(), Object.values(), and Object.entries() enable iteration. Property shorthand, computed property names, and method syntax improve readability and flexibility.
+## 1) Creating objects and accessing properties
 
-Objects model real-world entities in code - users, products, orders. Object-oriented programming organizes code around objects. JSON (JavaScript Object Notation) uses object-like syntax for data interchange. Understanding objects, prototypes, and this binding is fundamental to JavaScript mastery.`;
+\`\`\`js
+const key = 'email';
+const user = {
+  id: 1,
+  name: 'Ava',
+  [key]: 'ava@example.com',
+};
+
+user.name;      // dot notation
+user['email'];  // bracket notation
+\`\`\`
+
+Use bracket notation for dynamic keys or keys that aren’t valid identifiers.
+
+---
+
+## 2) Methods and \`this\`
+
+\`\`\`js
+const cart = {
+  items: [],
+  add(item) {
+    this.items.push(item);
+  },
+};
+\`\`\`
+
+If you use arrow functions as object methods, \`this\` won’t behave like a normal method.
+
+---
+
+## 3) Copying objects (avoid accidental mutation)
+
+Objects are **references**. Copy before changing when you want immutability:
+
+\`\`\`js
+const original = { a: 1, b: 2 };
+const updated = { ...original, b: 99 };
+\`\`\`
+
+---
+
+## 4) Destructuring and iteration
+
+\`\`\`js
+const { id, name } = user;
+
+Object.keys(user);
+Object.values(user);
+Object.entries(user);
+\`\`\`
+
+---
+
+## 5) Practice
+
+1) Write \`pick(obj, keys)\` and \`omit(obj, keys)\`.
+2) Implement a simple \`deepFreeze\` (shallow is ok if you document it).
+3) Refactor code that mutates an object into immutable updates using spread.
+`;
     }
     if (lowerTitle.includes('array')) {
       return `# ${title}
 
-JavaScript arrays store ordered collections of values accessible by numeric indices. Arrays can contain any data type, including mixed types. Array methods provide powerful data manipulation capabilities. Arrays are fundamental to JavaScript programming, used for lists, collections, and data processing.
+Arrays store **ordered lists** of values. They’re central to data processing and UI rendering.
 
-Arrays are created with square brackets: [1, 2, 3] or new Array(). Indices start at zero. Arrays have a length property tracking element count. Common methods include push (add to end), pop (remove from end), shift (remove from start), and unshift (add to start). These methods mutate the array.
+---
 
-Higher-order array methods enable functional programming. map() transforms elements, filter() selects elements, reduce() accumulates values, forEach() iterates elements. These methods don't mutate original arrays (except forEach), returning new arrays instead. find(), some(), and every() search arrays.
+## 1) Create arrays and use common operations
 
-Modern JavaScript includes array destructuring, spread operator for copying/concatenating, and Array.from() for creating arrays from iterables. Understanding array methods, immutability, and functional patterns is crucial for data manipulation. Arrays power most list-based UI components in modern frameworks.`;
+\`\`\`js
+const nums = [1, 2, 3];
+
+nums.push(4);   // mutates
+nums.pop();     // mutates
+
+const first = nums[0];
+const last = nums[nums.length - 1];
+\`\`\`
+
+---
+
+## 2) Functional methods (preferred for transforms)
+
+\`\`\`js
+const doubled = nums.map((n) => n * 2);
+const evens = nums.filter((n) => n % 2 === 0);
+const sum = nums.reduce((acc, n) => acc + n, 0);
+\`\`\`
+
+Use these when you want **new arrays** instead of mutating.
+
+---
+
+## 3) Mutating vs non-mutating (important!)
+
+- Mutating: \`push\`, \`pop\`, \`shift\`, \`unshift\`, \`sort\`, \`reverse\`, \`splice\`
+- Non-mutating: \`map\`, \`filter\`, \`find\`, \`slice\`, \`concat\`
+
+Immutable add/remove patterns:
+
+\`\`\`js
+const addOne = (arr, x) => [...arr, x];
+const removeById = (arr, id) => arr.filter((t) => t.id !== id);
+\`\`\`
+
+---
+
+## 4) Destructuring and spread
+
+\`\`\`js
+const [a, b] = [10, 20];
+const merged = [...[1, 2], ...[3, 4]];
+\`\`\`
+
+---
+
+## 5) Practice
+
+1) Given \`[{id, done}]\`, toggle a todo **immutably**.
+2) Write \`groupBy(items, keyFn)\` returning an object of arrays.
+3) Implement \`unique\` and compare \`Set\` vs \`filter\` approaches.
+`;
     }
     if (lowerTitle.includes('async') || lowerTitle.includes('promise')) {
       return `# ${title}
 
-Asynchronous JavaScript handles operations that take time without blocking code execution. Callbacks, Promises, and async/await manage asynchronous operations like network requests, file operations, and timers. Understanding asynchronous patterns is essential for modern JavaScript development.
+Asynchronous JavaScript lets you start work (network, timers, I/O) **without blocking** the main thread. The core building blocks are **Promises** and **async/await**.
 
-Promises represent eventual completion or failure of asynchronous operations. Promises have three states: pending (initial), fulfilled (successful), or rejected (failed). The then() method handles success, catch() handles errors. Promises chain operations elegantly, avoiding callback hell from nested callbacks.
+---
 
-Async/await syntax introduced in ES8 makes asynchronous code look synchronous. Async functions return promises implicitly. The await keyword pauses execution until promises resolve, making code more readable. Try/catch blocks handle errors with async/await. Async/await is now the preferred asynchronous pattern.
+## 1) Promise mental model
 
-Modern web applications heavily rely on asynchronous operations for API calls, database queries, and real-time updates. Fetch API uses promises for HTTP requests. Understanding promise chaining, error handling, parallel execution with Promise.all(), and async/await patterns is crucial for building responsive applications.`;
+A Promise represents a value that will exist later:
+- **pending** → **fulfilled** (success)
+- **pending** → **rejected** (error)
+
+\`\`\`js
+fetch('/api')
+  .then((res) => res.json())
+  .then((data) => console.log(data))
+  .catch((err) => console.error(err));
+\`\`\`
+
+---
+
+## 2) \`async\` / \`await\` (preferred style)
+
+\`\`\`js
+async function loadUser(id) {
+  const res = await fetch('/api/users/' + id);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return await res.json();
+}
+\`\`\`
+
+Use \`try/catch\` for errors:
+
+\`\`\`js
+async function safeLoad(id) {
+  try {
+    return await loadUser(id);
+  } catch (e) {
+    return null;
+  }
+}
+\`\`\`
+
+---
+
+## 3) Parallel vs sequential work
+
+Sequential (slower):
+\`\`\`js
+const a = await loadUser(1);
+const b = await loadUser(2);
+\`\`\`
+
+Parallel (faster):
+\`\`\`js
+const [a, b] = await Promise.all([loadUser(1), loadUser(2)]);
+\`\`\`
+
+---
+
+## 4) Common mistakes
+
+- Forgetting to \`await\` (bugs that look like “undefined data”)
+- Catching errors too broadly and hiding failures
+- Doing parallel work sequentially in loops
+
+---
+
+## 5) Practice
+
+1) Fetch two endpoints in parallel with \`Promise.all\`.
+2) Add a timeout to a fetch using \`AbortController\`.
+3) Wrap a callback API into a Promise.
+`;
     }
     if (lowerTitle.includes('dom')) {
       return `# ${title}
 
-The DOM (Document Object Model) is a programming interface representing HTML documents as a tree structure. JavaScript manipulates the DOM to dynamically update content, structure, and styling. Understanding DOM manipulation is fundamental to interactive web development, though modern frameworks often abstract this complexity.
+The DOM (Document Object Model) represents your HTML as a tree. JavaScript reads and updates that tree to build interactive pages.
 
-Element selection uses methods like getElementById(), getElementsByClassName(), querySelector(), and querySelectorAll(). querySelector uses CSS selectors for flexible element selection. Once elements are selected, JavaScript can read and modify properties including textContent, innerHTML, style, className, and attributes.
+---
 
-Creating and modifying elements involves createElement(), appendChild(), insertBefore(), and removeChild(). Event listeners attach to elements using addEventListener(), responding to clicks, input changes, keyboard presses, and more. Modern best practices favor event delegation - attaching listeners to parent elements rather than many children.
+## 1) Selecting elements
 
-While frameworks like React abstract DOM manipulation, understanding the DOM remains valuable. Direct DOM manipulation is sometimes necessary for integration with third-party libraries or performance optimization. DOM performance impacts page responsiveness - batch DOM updates, use documentFragment for bulk insertions, and avoid layout thrashing.`;
+\`\`\`js
+const button = document.querySelector('button');
+const items = document.querySelectorAll('.item');
+\`\`\`
+
+Prefer \`querySelector\` / \`querySelectorAll\` with CSS selectors.
+
+---
+
+## 2) Updating content safely
+
+- Prefer \`textContent\` for user-provided strings.
+- Avoid \`innerHTML\` with untrusted content (XSS risk).
+
+\`\`\`js
+const el = document.querySelector('#status');
+el.textContent = 'Loaded';
+\`\`\`
+
+---
+
+## 3) Events + event delegation
+
+Event delegation attaches one listener on a parent and handles clicks on children.
+
+\`\`\`js
+const list = document.querySelector('#list');
+list.addEventListener('click', (e) => {
+  const li = e.target.closest('li');
+  if (!li) return;
+  li.classList.toggle('done');
+});
+\`\`\`
+
+---
+
+## 4) Performance basics
+
+- Batch DOM writes; avoid layout thrashing
+- Use \`documentFragment\` for many inserts
+- Use \`requestAnimationFrame\` for smooth visual updates
+
+---
+
+## 5) Practice
+
+1) Build a todo list using event delegation.
+2) Render 1000 list items efficiently (Fragment + single append).
+3) Add keyboard support (Enter to add, Delete to remove).
+`;
     }
     if (lowerTitle.includes('class') && !lowerTitle.includes('pseudo')) {
       return `# ${title}
 
-JavaScript classes introduced in ES6 provide cleaner syntax for object-oriented programming. Classes are syntactic sugar over JavaScript's existing prototype-based inheritance but offer more familiar syntax for developers from class-based languages. Classes organize code around blueprints for creating objects with shared structure and behavior.
+Classes give a clean syntax for object-oriented code. Under the hood, JavaScript is still **prototype-based** — classes are mostly syntactic sugar.
 
-Class syntax includes a constructor method for initialization and method definitions for behavior. The new keyword creates class instances. Classes support inheritance via extends keyword, enabling subclasses to inherit parent properties and methods. The super keyword accesses parent class constructors and methods.
+---
 
-Class fields and methods can be public or private (prefixed with #). Static methods belong to the class rather than instances. Getters and setters provide controlled property access. Classes can include computed property names and method shorthand. Understanding class features enables clean object-oriented JavaScript.
+## 1) Basic class
 
-Modern JavaScript frameworks use classes extensively, especially React class components (though hooks are now preferred). Classes organize related functionality, model domain entities, and structure complex applications. While functional programming is popular in JavaScript, classes remain valuable for certain OOP patterns and framework requirements.`;
+\`\`\`js
+class User {
+  constructor(email) {
+    this.email = email;
+  }
+
+  greet() {
+    return 'Hi ' + this.email;
+  }
+}
+
+const u = new User('a@example.com');
+u.greet();
+\`\`\`
+
+---
+
+## 2) Inheritance with \`extends\` and \`super\`
+
+\`\`\`js
+class Admin extends User {
+  constructor(email) {
+    super(email);
+    this.role = 'admin';
+  }
+}
+\`\`\`
+
+---
+
+## 3) Static methods and private fields
+
+\`\`\`js
+class Token {
+  static from(text) {
+    return new Token(text);
+  }
+
+  #value;
+  constructor(value) {
+    this.#value = value;
+  }
+
+  toString() {
+    return this.#value;
+  }
+}
+\`\`\`
+
+---
+
+## 4) When to use classes
+
+- Great for domain entities and service objects
+- Sometimes overkill for small modules (a plain function can be simpler)
+
+---
+
+## 5) Practice
+
+1) Implement a \`TodoStore\` class with \`add\`, \`remove\`, \`toggle\`.
+2) Add a \`static fromJSON\` constructor.
+3) Write unit tests for class behavior.
+`;
     }
     if (lowerTitle.includes('modules')) {
       return `# ${title}
 
-JavaScript modules organize code into reusable, maintainable files. ES6 modules use import and export statements to share code between files. Modules have their own scope, preventing global namespace pollution. Modern JavaScript development is built on modules, enabling large-scale application architecture.
+Modules split code into reusable files. Modern JavaScript uses **ES modules (ESM)** with \`import\` / \`export\`.
 
-The export keyword makes functions, objects, classes, or variables available to other modules. Named exports: export const func, default exports: export default func. Import statements bring exports into files: import {func} from './file' for named exports, import func from './file' for default exports. Star imports import everything: import * as name.
+---
 
-Modules load dependencies, organize features, and enable code splitting. Build tools like webpack, Rollup, and Vite bundle modules for browsers. Dynamic imports (import()) load modules on demand, improving initial load times. Module formats include ES6 modules (ESM), CommonJS (Node.js), AMD, and UMD.
+## 1) Named exports and default exports
 
-Professional JavaScript applications organize code into modules by feature or layer. Module organization affects maintainability, testability, and bundle size. Tree-shaking removes unused exports from production bundles. Understanding modules, circular dependencies, and module resolution enables scalable application architecture.`;
+\`\`\`js
+// math.js
+export const add = (a, b) => a + b;
+export default function mul(a, b) {
+  return a * b;
+}
+
+// app.js
+import mul, { add } from './math.js';
+\`\`\`
+
+---
+
+## 2) Module scope
+
+Each module has its own scope (no accidental globals). This is a big maintainability win.
+
+---
+
+## 3) Dynamic imports (code splitting)
+
+\`\`\`js
+async function loadChart() {
+  const mod = await import('./chart.js');
+  return mod.renderChart();
+}
+\`\`\`
+
+---
+
+## 4) ESM vs CommonJS (Node)
+
+- CommonJS: \`require\` / \`module.exports\`
+- ESM: \`import\` / \`export\`
+
+In Node, the module mode depends on \`package.json\` (for example, \`\"type\": \"module\"\`) and file extensions.
+
+---
+
+## 5) Practice
+
+1) Refactor a script into modules: \`utils\`, \`api\`, \`ui\`.
+2) Replace a circular dependency with a shared helper module.
+3) Add a dynamic import for a heavy feature (charts/editor).
+`;
     }
     if (lowerTitle.includes('json')) {
       return `# ${title}
 
-JSON (JavaScript Object Notation) is a lightweight data interchange format using JavaScript object syntax. JSON represents structured data as text, making it ideal for transmitting data between servers and web applications. Nearly all modern APIs use JSON for data exchange. Understanding JSON is essential for web development.
+JSON (JavaScript Object Notation) is a text format used to move data between systems. It looks like JavaScript objects, but it’s **more strict**.
 
-JSON supports objects, arrays, strings, numbers, booleans, and null. JSON syntax resembles JavaScript objects but requires double quotes for strings and keys. JSON.parse() converts JSON strings to JavaScript objects. JSON.stringify() converts JavaScript objects to JSON strings. These methods enable data serialization and deserialization.
+---
 
-APIs return data as JSON. Fetch requests receive JSON responses parsed into JavaScript objects. JSON configuration files store application settings. JSON is human-readable and language-independent, supported by virtually all programming languages. The simplicity and ubiquity of JSON drove its adoption over XML.
+## 1) What JSON can represent
 
-Working with JSON involves parsing responses, extracting data, and validating structure. JSON doesn't support functions, undefined, or dates (requires string conversion). Deep copying requires JSON.parse(JSON.stringify(obj)). Understanding JSON structure, parsing, and stringifying is fundamental to API integration and data persistence.`;
+JSON supports only:
+- objects, arrays
+- strings, numbers
+- booleans
+- \`null\`
+
+It does **not** support functions, \`undefined\`, symbols, or dates (dates must be strings).
+
+---
+
+## 2) \`JSON.parse\` and \`JSON.stringify\`
+
+\`\`\`js
+const text = JSON.stringify({ id: 1, ok: true }, null, 2);
+const obj = JSON.parse(text);
+\`\`\`
+
+---
+
+## 3) Common pitfalls
+
+- JSON requires **double quotes** for strings and keys.
+- Numbers lose precision if they exceed safe integer range.
+- Dates turn into strings; you must parse them back.
+
+---
+
+## 4) Practice
+
+1) Serialize an object, store it in \`localStorage\`, and restore it.
+2) Write a safe parser that returns \`null\` on invalid JSON.
+3) Convert an API response into a typed/validated shape (even simple checks).
+`;
     }
     return null; // Return null if no specific content found for JavaScript
   }
@@ -16123,6 +16721,1340 @@ React Router uses components like BrowserRouter (HTML5 history), Routes (route c
 Navigation methods include Link components for declarative navigation and useNavigate hook for programmatic navigation. Route guards and protected routes implement authentication. Redirect component or useNavigate enable conditional redirects. URL parameters pass data between routes. Location state passes data without showing in URLs.
 
 Modern React applications require sophisticated routing for multi-page experiences. React Router v6 simplified API and improved performance. Understanding routing, nested routes, route parameters, and programmatic navigation is essential for complex React applications. React Router enables creating applications that feel native while remaining single-page apps.`;
+    }
+
+    if (lowerTitle === 'react get started') {
+      return `# ${title}
+
+This topic gets you from “I installed Node” to a working React app you can run, edit, and understand.
+
+---
+
+## 1) Create a new React app
+
+Two common modern options:
+
+### Vite (fast, minimal)
+
+\`\`\`bash
+npm create vite@latest my-app -- --template react
+cd my-app
+npm install
+npm run dev
+\`\`\`
+
+### Create React App (older, still seen)
+
+\`\`\`bash
+npx create-react-app my-app
+cd my-app
+npm start
+\`\`\`
+
+---
+
+## 2) Understand the basic project structure
+
+- \`src/\`: your app code
+- \`main.jsx\` or \`index.jsx\`: mounts React
+- \`App.jsx\`: your first component
+
+---
+
+## 3) The React mental model
+
+- UI is a function of state: **UI = f(state)**
+- Components are functions that return JSX
+- State changes trigger re-render
+
+---
+
+## 4) Practice
+
+1) Make a counter with \`useState\`.
+2) Render a list from an array.
+3) Add a form input and show the live value.
+`;
+    }
+
+    if (lowerTitle === 'react first app') {
+      return `# ${title}
+
+Your first React app should teach you the fundamentals: components, props, state, events, and rendering lists.
+
+---
+
+## 1) Build a small “Todo” UI
+
+Minimum features:
+- Add a todo
+- Toggle done
+- Remove a todo
+
+---
+
+## 2) Suggested component split
+
+- \`App\`: owns state
+- \`TodoInput\`: input + submit
+- \`TodoList\`: renders todos
+- \`TodoItem\`: one row
+
+---
+
+## 3) Key skills you’ll practice
+
+- Controlled input
+- Immutable updates (never mutate arrays/objects)
+- Keys when rendering lists
+- Callback props (child → parent)
+
+---
+
+## 4) Practice
+
+1) Persist todos to localStorage.
+2) Add filtering (all / active / done).
+3) Add basic validation (no empty todos).
+`;
+    }
+
+    if (lowerTitle === 'react render html') {
+      return `# ${title}
+
+React does not “write HTML strings” like traditional templates. It **renders components** into a real DOM container.
+
+---
+
+## 1) Mounting React (React 18)
+
+\`\`\`jsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App.jsx';
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+\`\`\`
+
+---
+
+## 2) JSX compiles to JavaScript
+
+\`<h1>Hello</h1>\` is compiled to a JavaScript call that describes the element tree.
+
+---
+
+## 3) Common gotchas
+
+- Use \`className\` (not \`class\`)
+- Use \`htmlFor\` (not \`for\`)
+- JSX values use \`{ }\`
+
+---
+
+## 4) Practice
+
+1) Render a list of items.
+2) Conditionally render a banner.
+3) Render a component with props.
+`;
+    }
+
+    if (lowerTitle === 'react upgrade') {
+      return `# ${title}
+
+Upgrading React is mostly about understanding **breaking changes**, **new APIs**, and **ecosystem compatibility** (router, state libs, build tooling).
+
+---
+
+## 1) Safe upgrade workflow
+
+1) Upgrade in a branch.
+2) Update React + ReactDOM.
+3) Run tests/lint/build.
+4) Fix warnings before shipping.
+
+---
+
+## 2) React 18 highlights
+
+- \`createRoot\` API
+- Strict Mode double-invokes some lifecycle/effects in dev
+- Concurrency features (\`useTransition\`, Suspense improvements)
+
+---
+
+## 3) Real-world advice
+
+- Upgrade router and tooling along with React.
+- Watch for peer dependency constraints.
+- Use a changelog-driven approach (read migration guides).
+`;
+    }
+
+    if (lowerTitle === 'react es6') {
+      return `# ${title}
+
+Modern React code assumes you’re comfortable with core ES6+ JavaScript features.
+
+---
+
+## 1) ES6+ features you’ll use constantly
+
+- \`const\` / \`let\`
+- Arrow functions
+- Destructuring
+- Spread/rest
+- Modules (import/export)
+- Classes (mainly for legacy React code)
+
+---
+
+## 2) Quick examples
+
+\`\`\`js
+// destructuring
+const user = { id: 1, name: 'Ava' };
+const { name } = user;
+
+// spread
+const next = { ...user, name: 'Sam' };
+
+// arrow function
+const add = (a, b) => a + b;
+\`\`\`
+
+---
+
+## 3) Why this matters for React
+
+- Props are often destructured.
+- State updates rely on spread for immutability.
+- Components are typically arrow functions.
+`;
+    }
+
+    if (lowerTitle === 'react class') {
+      return `# ${title}
+
+Class components are the older React component style. You’ll still see them in legacy codebases, but most new React is written with function components + hooks.
+
+---
+
+## 1) Class component structure
+
+\`\`\`jsx
+class Counter extends React.Component {
+  state = { count: 0 };
+
+  render() {
+    return (
+      <button onClick={() => this.setState({ count: this.state.count + 1 })}>
+        {this.state.count}
+      </button>
+    );
+  }
+}
+\`\`\`
+
+---
+
+## 2) Lifecycle methods (high-level)
+
+- \`componentDidMount\`
+- \`componentDidUpdate\`
+- \`componentWillUnmount\`
+
+Hooks + \`useEffect\` cover most of these.
+
+---
+
+## 3) When you need this knowledge
+
+- Maintaining older apps
+- Understanding older tutorials
+- Migrating to hooks
+`;
+    }
+
+    if (lowerTitle === 'react events') {
+      return `# ${title}
+
+React events use a consistent, cross-browser event system. You attach handlers directly in JSX.
+
+---
+
+## 1) Basic pattern
+
+\`\`\`jsx
+function Button() {
+  const onClick = () => {
+    console.log('clicked');
+  };
+  return <button onClick={onClick}>Save</button>;
+}
+\`\`\`
+
+---
+
+## 2) Event object
+
+\`\`\`jsx
+function Form() {
+  const onSubmit = (e) => {
+    e.preventDefault();
+  };
+  return <form onSubmit={onSubmit}>...</form>;
+}
+\`\`\`
+
+---
+
+## 3) Common pitfalls
+
+- Don’t call the handler in JSX: use \`onClick={fn}\`, not \`onClick={fn()}\`
+- Keep handlers small; move logic to helpers
+`;
+    }
+
+    if (lowerTitle === 'react conditionals') {
+      return `# ${title}
+
+Conditional rendering is how you show different UI for different states (loading, error, empty, success).
+
+---
+
+## 1) Common patterns
+
+\`\`\`jsx
+{isLoading && <Spinner />}
+{error ? <ErrorBox /> : <DataView />}
+\`\`\`
+
+---
+
+## 2) Avoid deeply nested ternaries
+
+Prefer early returns:
+
+\`\`\`jsx
+if (isLoading) return <Spinner />;
+if (error) return <ErrorBox />;
+return <DataView />;
+\`\`\`
+
+---
+
+## 3) Practice
+
+1) Add \`loading/error/empty\` states to a list page.
+2) Render different buttons based on auth state.
+`;
+    }
+
+    if (lowerTitle === 'react lists') {
+      return `# ${title}
+
+Lists are rendered by mapping arrays to JSX. The critical rule is: **stable keys**.
+
+---
+
+## 1) Render a list
+
+\`\`\`jsx
+function TodoList({ todos }) {
+  return (
+    <ul>
+      {todos.map((t) => (
+        <li key={t.id}>{t.text}</li>
+      ))}
+    </ul>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Keys (important)
+
+- Keys help React reconcile list changes efficiently.
+- Prefer database ids.
+- Avoid using array index as key when the list can reorder.
+`;
+    }
+
+    if (lowerTitle === 'react forms') {
+      return `# ${title}
+
+React forms are usually built with **controlled inputs**: the input value comes from state, and updates flow through \`onChange\`.
+
+---
+
+## 1) Controlled input
+
+\`\`\`jsx
+function NameForm() {
+  const [name, setName] = React.useState('');
+  return (
+    <input value={name} onChange={(e) => setName(e.target.value)} />
+  );
+}
+\`\`\`
+
+---
+
+## 2) Validation approach
+
+- Validate on submit for simple forms.
+- Validate on change for realtime feedback.
+- Keep errors in state alongside values.
+`;
+    }
+
+    if (lowerTitle === 'react forms submit') {
+      return `# ${title}
+
+Submitting a form in React means preventing the default browser submit, validating, then performing an action (API call, local state update).
+
+---
+
+## 1) Submit handler
+
+\`\`\`jsx
+function Login() {
+  const [email, setEmail] = React.useState('');
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    // validate + send request
+  };
+
+  return (
+    <form onSubmit={onSubmit}>
+      <input value={email} onChange={(e) => setEmail(e.target.value)} />
+      <button type="submit">Submit</button>
+    </form>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Best practices
+
+- Disable submit while saving.
+- Show server error messages.
+- Avoid double submits (idempotency on backend).
+`;
+    }
+
+    if (lowerTitle === 'react textarea') {
+      return `# ${title}
+
+A \`<textarea>\` becomes **controlled** when you pass \`value\` and update state in \`onChange\`. This keeps UI and state in sync and makes validation straightforward.
+
+---
+
+## 1) Controlled textarea (recommended)
+
+\`\`\`jsx
+function Bio() {
+  const [bio, setBio] = React.useState('');
+
+  return (
+    <label>
+      Bio
+      <textarea
+        rows={4}
+        value={bio}
+        onChange={(e) => setBio(e.target.value)}
+      />
+    </label>
+  );
+}
+\`\`\`
+
+---
+
+## 2) UX tips: length limits + helper text
+
+\`\`\`jsx
+function Bio() {
+  const max = 160;
+  const [bio, setBio] = React.useState('');
+
+  return (
+    <>
+      <textarea
+        rows={4}
+        value={bio}
+        maxLength={max}
+        placeholder="Tell us about yourself..."
+        onChange={(e) => setBio(e.target.value)}
+      />
+      <div>
+        {bio.length}/{max}
+      </div>
+    </>
+  );
+}
+\`\`\`
+
+---
+
+## 3) Controlled vs uncontrolled
+
+- **Controlled**: \`value\` + \`onChange\` (best for validation and dynamic UI)
+- **Uncontrolled**: \`defaultValue\` + ref (ok for simple forms)
+
+---
+
+## 4) Practice
+
+1) Add a minimum length validation and show an error.
+2) Persist the textarea value to \`localStorage\` and restore on load.
+3) Add a “Clear” button that resets the state.
+`;
+    }
+
+    if (lowerTitle === 'react select') {
+      return `# ${title}
+
+A \`<select>\` is controlled by passing \`value\` and handling \`onChange\`. Note: the browser provides \`e.target.value\` as a **string**, so convert types when needed.
+
+---
+
+## 1) Basic controlled select
+
+\`\`\`jsx
+function RoleSelect() {
+  const [role, setRole] = React.useState('user');
+
+  return (
+    <select value={role} onChange={(e) => setRole(e.target.value)}>
+      <option value="user">User</option>
+      <option value="admin">Admin</option>
+    </select>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Placeholder option + mapping options
+
+\`\`\`jsx
+const options = [
+  { value: 'user', label: 'User' },
+  { value: 'admin', label: 'Admin' },
+];
+
+function RoleSelect() {
+  const [role, setRole] = React.useState('');
+
+  return (
+    <select value={role} onChange={(e) => setRole(e.target.value)}>
+      <option value="" disabled>
+        Select a role
+      </option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+\`\`\`
+
+---
+
+## 3) Numbers and booleans
+
+\`\`\`jsx
+function PageSize() {
+  const [size, setSize] = React.useState(10);
+
+  return (
+    <select value={size} onChange={(e) => setSize(Number(e.target.value))}>
+      <option value="10">10</option>
+      <option value="20">20</option>
+      <option value="50">50</option>
+    </select>
+  );
+}
+\`\`\`
+
+---
+
+## 4) Practice
+
+1) Build a country select and show the selected label.
+2) Add validation: role must be selected.
+3) Add a “Reset” action that clears the selection.
+`;
+    }
+
+    if (lowerTitle === 'react multiple inputs') {
+      return `# ${title}
+
+When a form has multiple fields, a common pattern is:
+- one state object
+- one \`onChange\` handler
+- update immutably using the input’s \`name\` as the key
+
+---
+
+## 1) One object state + generic change handler
+
+\`\`\`jsx
+function ProfileForm() {
+  const [form, setForm] = React.useState({ first: '', last: '' });
+
+  const onChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  return (
+    <>
+      <input name="first" value={form.first} onChange={onChange} />
+      <input name="last" value={form.last} onChange={onChange} />
+    </>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Handling different input types
+
+\`\`\`jsx
+const onChange = (e) => {
+  const { name, type, value, checked } = e.target;
+  setForm((prev) => ({
+    ...prev,
+    [name]: type === 'checkbox' ? checked : value,
+  }));
+};
+\`\`\`
+
+---
+
+## 3) When to use \`useReducer\`
+
+Consider \`useReducer\` when:
+- validation rules are complex
+- fields update each other
+- you have multi-step forms with “wizard” logic
+
+---
+
+## 4) Practice
+
+1) Add an \`email\` field + basic validation.
+2) Add a \`newsletter\` checkbox and store a boolean.
+3) Add a submit button that logs the JSON body you’d send to an API.
+`;
+    }
+
+    if (lowerTitle === 'react checkbox') {
+      return `# ${title}
+
+Checkboxes represent either:
+- a **boolean** (on/off)
+- membership in a **set** (multi-select)
+
+---
+
+## 1) Single boolean checkbox
+
+\`\`\`jsx
+function Terms() {
+  const [accepted, setAccepted] = React.useState(false);
+
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={accepted}
+        onChange={(e) => setAccepted(e.target.checked)}
+      />
+      Accept terms
+    </label>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Multiple checkboxes (multi-select)
+
+\`\`\`jsx
+function Skills() {
+  const [skills, setSkills] = React.useState([]);
+
+  const toggle = (skill) => {
+    setSkills((prev) =>
+      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]
+    );
+  };
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={skills.includes('js')}
+          onChange={() => toggle('js')}
+        />
+        JavaScript
+      </label>
+
+      <label>
+        <input
+          type="checkbox"
+          checked={skills.includes('react')}
+          onChange={() => toggle('react')}
+        />
+        React
+      </label>
+    </>
+  );
+}
+\`\`\`
+
+---
+
+## 3) Accessibility basics
+
+- Wrap the input in a \`label\` or use \`htmlFor\`.
+- Use clear, specific label text.
+
+---
+
+## 4) Practice
+
+1) Add a “Select all” checkbox.
+2) Persist selected values to \`localStorage\`.
+3) Validate that at least one option is selected.
+`;
+    }
+
+    if (lowerTitle === 'react radio') {
+      return `# ${title}
+
+Radio inputs represent a **single selected value** from a group. They’re ideal for “choose exactly one” inputs (plans, shipping methods, etc.).
+
+---
+
+## 1) Controlled radio group (recommended)
+
+\`\`\`jsx
+function Plan() {
+  const [plan, setPlan] = React.useState('basic');
+
+  return (
+    <fieldset>
+      <legend>Plan</legend>
+
+      <label>
+        <input
+          type="radio"
+          name="plan"
+          value="basic"
+          checked={plan === 'basic'}
+          onChange={(e) => setPlan(e.target.value)}
+        />
+        Basic
+      </label>
+
+      <label>
+        <input
+          type="radio"
+          name="plan"
+          value="pro"
+          checked={plan === 'pro'}
+          onChange={(e) => setPlan(e.target.value)}
+        />
+        Pro
+      </label>
+    </fieldset>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Generate radios from an array
+
+\`\`\`jsx
+function Plan() {
+  const [plan, setPlan] = React.useState('basic');
+  const options = ['basic', 'pro', 'enterprise'];
+
+  return (
+    <fieldset>
+      <legend>Plan</legend>
+      {options.map((p) => (
+        <label key={p}>
+          <input
+            type="radio"
+            name="plan"
+            value={p}
+            checked={plan === p}
+            onChange={(e) => setPlan(e.target.value)}
+          />
+          {p}
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+\`\`\`
+
+---
+
+## 3) Radio vs checkbox
+
+- **Radio**: choose one
+- **Checkbox**: choose many (or a single boolean)
+
+---
+
+## 4) Practice
+
+1) Disable submit until a plan is selected.
+2) Show the selected plan in a summary section.
+3) Add validation + an error message when nothing is selected.
+`;
+    }
+
+    if (lowerTitle === 'react css styling') {
+      return `# ${title}
+
+React styling is mostly normal CSS — the difference is how you organize it per component.
+
+---
+
+## Common approaches
+
+- Global CSS files
+- Component CSS files
+- Utility classes (Tailwind)
+- CSS Modules (scoped)
+- CSS-in-JS (runtime styles)
+
+---
+
+## Inline styles example
+
+\`\`\`jsx
+<div style={{ padding: 12, backgroundColor: 'white' }}>Hello</div>
+\`\`\`
+
+Inline styles are JS objects (camelCase properties).
+`;
+    }
+
+    if (lowerTitle === 'react css modules') {
+      return `# ${title}
+
+CSS Modules scope class names to a component, reducing global CSS conflicts.
+
+---
+
+## 1) Create a module
+
+\`\`\`css
+/* Button.module.css */
+.primary {
+  padding: 8px 12px;
+}
+\`\`\`
+
+## 2) Import + use
+
+\`\`\`jsx
+import styles from './Button.module.css';
+
+export function Button() {
+  return <button className={styles.primary}>Save</button>;
+}
+\`\`\`
+`;
+    }
+
+    if (lowerTitle === 'react css-in-js') {
+      return `# ${title}
+
+CSS-in-JS libraries (styled-components, Emotion) generate styles from JavaScript. This can improve component encapsulation, but adds runtime overhead and a different debugging model.
+
+---
+
+## When CSS-in-JS is useful
+
+- Theme-driven styling
+- Dynamic styles based on props
+- Component libraries with strict encapsulation
+
+---
+
+## Tradeoffs
+
+- Runtime cost (varies by library)
+- Tooling complexity
+- SSR/hydration considerations
+
+In many apps, CSS Modules or Tailwind is simpler and faster.
+`;
+    }
+
+    if (lowerTitle === 'react sass') {
+      return `# ${title}
+
+Sass adds variables, nesting, mixins, and functions on top of CSS. It’s useful for large CSS codebases that want structure.
+
+---
+
+## What to know
+
+- Partials and imports
+- Variables and mixins
+- Avoid overly deep nesting
+
+---
+
+## Best practice
+
+Keep Sass modular (per component/feature) to avoid one massive stylesheet.
+`;
+    }
+
+    if (lowerTitle === 'react portals') {
+      return `# ${title}
+
+Portals let you render a subtree into a different DOM node. The classic use case is modals and tooltips.
+
+---
+
+## Why portals
+
+- Avoid z-index stacking issues
+- Render modals outside overflow-hidden containers
+
+---
+
+## Conceptual example
+
+\`\`\`jsx
+import { createPortal } from 'react-dom';
+
+function Modal({ children }) {
+  return createPortal(children, document.getElementById('modal-root'));
+}
+\`\`\`
+`;
+    }
+
+    if (lowerTitle === 'react suspense') {
+      return `# ${title}
+
+Suspense lets you show a fallback UI while code (or data in some architectures) is loading.
+
+---
+
+## 1) Code-splitting with \`lazy\`
+
+\`\`\`jsx
+const Settings = React.lazy(() => import('./Settings'));
+
+export function App() {
+  return (
+    <React.Suspense fallback={<div>Loading...</div>}>
+      <Settings />
+    </React.Suspense>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Real-world usage
+
+- Route-level code splitting
+- Large components loaded on demand
+`;
+    }
+
+    if (lowerTitle === 'react transitions') {
+      return `# ${title}
+
+“Transitions” can mean two things in React:
+
+1) **Animations** (CSS transitions, libraries)
+2) **Concurrent UI transitions** (React 18 \`useTransition\`)
+
+---
+
+## 1) UI transitions (React 18)
+
+\`\`\`jsx
+const [isPending, startTransition] = React.useTransition();
+
+function onSearchChange(value) {
+  startTransition(() => {
+    setQuery(value);
+  });
+}
+\`\`\`
+
+This keeps typing responsive while expensive UI updates run.
+
+---
+
+## 2) Animations
+
+For animations, many teams use CSS transitions or libraries like Framer Motion.
+`;
+    }
+
+    if (lowerTitle === 'react forward ref') {
+      return `# ${title}
+
+\`forwardRef\` lets a parent get a ref to a child component’s DOM node (or an imperative handle). Use it sparingly.
+
+---
+
+## DOM ref example
+
+\`\`\`jsx
+const TextInput = React.forwardRef(function TextInput(props, ref) {
+  return <input ref={ref} {...props} />;
+});
+\`\`\`
+
+---
+
+## When to use
+
+- Focus management
+- Measuring DOM
+- Integrating with non-React libraries
+`;
+    }
+
+    if (lowerTitle === 'react hoc') {
+      return `# ${title}
+
+HOC (Higher-Order Component) is a pattern: a function that takes a component and returns an enhanced component.
+
+---
+
+## Example idea
+
+- \`withAuth\`: wraps a component and redirects if not logged in
+- \`withLogging\`: logs renders or props
+
+---
+
+## Modern note
+
+Hooks replaced many HOC use cases, but HOCs still appear in older libraries and codebases.
+`;
+    }
+
+    if (lowerTitle === 'react usecontext') {
+      return `# ${title}
+
+\`useContext\` reads values from a React Context (global-ish state like theme, auth, locale).
+
+---
+
+## 1) Create a context
+
+\`\`\`jsx
+const ThemeContext = React.createContext('light');
+\`\`\`
+
+## 2) Provide it
+
+\`\`\`jsx
+<ThemeContext.Provider value="dark">...</ThemeContext.Provider>
+\`\`\`
+
+## 3) Consume it
+
+\`\`\`jsx
+const theme = React.useContext(ThemeContext);
+\`\`\`
+
+Use Context for app-level concerns; avoid using it as a replacement for all state.
+`;
+    }
+
+    if (lowerTitle === 'react useref') {
+      return `# ${title}
+
+\`useRef\` stores a mutable value that persists across renders without causing re-renders.
+
+---
+
+## 1) DOM refs
+
+\`\`\`jsx
+const inputRef = React.useRef(null);
+\`\`\`
+
+## 2) Mutable values
+
+\`\`\`jsx
+const renderCount = React.useRef(0);
+renderCount.current += 1;
+\`\`\`
+
+Use refs for DOM access and instance-like values, not for UI state.
+`;
+    }
+
+    if (lowerTitle === 'react usereducer') {
+      return `# ${title}
+
+\`useReducer\` is good for complex state transitions where updates depend on actions.
+
+---
+
+## Basic pattern
+
+\`\`\`jsx
+function reducer(state, action) {
+  switch (action.type) {
+    case 'inc': return { ...state, count: state.count + 1 };
+    default: return state;
+  }
+}
+
+const [state, dispatch] = React.useReducer(reducer, { count: 0 });
+\`\`\`
+
+It can improve maintainability for state with many transitions.
+`;
+    }
+
+    if (lowerTitle === 'react usecallback') {
+      return `# ${title}
+
+\`useCallback\` memoizes a function reference. It’s mainly useful when passing callbacks to memoized child components.
+
+---
+
+## Pattern
+
+\`\`\`jsx
+const onSave = React.useCallback(() => {
+  // ...
+}, [/* dependencies */]);
+\`\`\`
+
+Use it intentionally — unnecessary memoization adds complexity.
+`;
+    }
+
+    if (lowerTitle === 'react usememo') {
+      return `# ${title}
+
+\`useMemo\` memoizes an expensive computed value between renders.
+
+---
+
+## Pattern
+
+\`\`\`jsx
+const filtered = React.useMemo(() => {
+  return items.filter((x) => x.active);
+}, [items]);
+\`\`\`
+
+Only use it when you’ve measured real performance issues.
+`;
+    }
+
+    if (lowerTitle === 'react exercises') {
+      return `# ${title}
+
+Exercises are where React becomes “muscle memory”. Focus on small, complete components.
+
+---
+
+## Suggested exercises
+
+1) Counter + step size
+2) Todo list with filters
+3) Fetch data and show loading/error/empty
+4) Modal using a portal
+
+---
+
+## What to measure
+
+- Correctness (state updates)
+- Component boundaries
+- Reusability (props)
+`;
+    }
+
+    if (lowerTitle === 'react compiler') {
+      return `# ${title}
+
+The React Compiler (experimental/early ecosystem feature) aims to automatically optimize React apps by reducing unnecessary re-renders (similar goal to manual memoization).
+
+---
+
+## 1) What it tries to solve
+
+- Developers often overuse \`useMemo\`/\`useCallback\`
+- Optimizations can be hard to get right
+
+---
+
+## 2) Practical guidance
+
+- Don’t assume you need it.
+- Learn fundamentals first (state, props, rendering).
+- Measure performance before optimizing.
+`;
+    }
+
+    if (lowerTitle === 'react quiz') {
+      return `# ${title}
+
+Use quizzes to check understanding of fundamentals.
+
+---
+
+## Quick self-check questions
+
+1) What’s the difference between props and state?
+2) Why are keys important in lists?
+3) When does \`useEffect\` run?
+4) What’s a controlled input?
+5) When would you use \`useReducer\`?
+`;
+    }
+
+    if (lowerTitle === 'react exercises (practice)') {
+      return `# ${title}
+
+Practice means repetition + slightly harder constraints.
+
+---
+
+## Practice ideas
+
+1) Build a CRUD UI with mock API.
+2) Add optimistic updates.
+3) Add pagination + search.
+4) Add basic accessibility (labels, keyboard navigation).
+`;
+    }
+
+    if (lowerTitle === 'react syllabus') {
+      return `# ${title}
+
+A good React syllabus moves from fundamentals → state/data → performance → architecture.
+
+---
+
+## Suggested order
+
+1) JSX + components
+2) Props + state
+3) Events + forms
+4) Lists + keys
+5) Effects + fetching
+6) Context + reducers
+7) Routing
+8) Testing
+9) Performance + profiling
+10) Deployment + monitoring
+`;
+    }
+
+    if (lowerTitle === 'react study plan') {
+      return `# ${title}
+
+This is a practical plan to learn React without getting stuck in tutorial loops.
+
+---
+
+## 2-week plan (suggested)
+
+- Days 1–2: JSX, components, props
+- Days 3–4: state + events
+- Days 5–6: lists, conditionals, forms
+- Days 7–8: effects + fetch + loading/error states
+- Days 9–10: routing + context
+- Days 11–12: testing basics
+- Days 13–14: small project + deploy
+
+Deliverable: one complete small app (not just snippets).
+`;
+    }
+
+    if (lowerTitle === 'react server') {
+      return `# ${title}
+
+“React on the server” usually means SSR (Server-Side Rendering) or newer architectures like React Server Components (often via frameworks like Next.js).
+
+---
+
+## 1) SSR (high-level)
+
+- Server renders initial HTML
+- Browser hydrates to make it interactive
+
+---
+
+## 2) Why server rendering matters
+
+- Faster first paint
+- Better SEO for content pages
+
+---
+
+## 3) Practical note
+
+Most teams use a framework (Next.js, Remix) for server rendering instead of hand-rolling SSR.
+`;
+    }
+
+    if (lowerTitle === 'react interview prep') {
+      return `# ${title}
+
+React interviews test fundamentals, not memorized APIs.
+
+---
+
+## Core areas to prepare
+
+- Component design and props/state
+- Rendering and reconciliation (keys, memo)
+- Hooks: rules, dependencies, common pitfalls
+- Data fetching patterns
+- Performance debugging basics
+
+---
+
+## Practice prompts
+
+1) Build a searchable list with debounce.
+2) Fix a bug caused by stale closures.
+3) Explain when Context is appropriate vs not.
+`;
     }
     return null; // Return null if no specific content found for React
   }
@@ -17260,7 +19192,1517 @@ const hash = crypto.createHash('sha256').update('data').digest('hex');
 `;
     }
 
-    if (lowerTitle.includes('intro') || lowerTitle.includes('home')) {
+    if (lowerTitle === 'node manage dep') {
+      return `# ${title}
+
+Managing dependencies well keeps your app **secure**, **reproducible**, and **easy to deploy**. Most Node production issues eventually touch dependencies (versions, lockfiles, transitive vulnerabilities).
+
+---
+
+## 1) Know what you’re installing
+
+- \`dependencies\`: required at runtime
+- \`devDependencies\`: tooling (lint/test/build)
+
+---
+
+## 2) Reproducible installs (lockfiles)
+
+- \`package-lock.json\` (npm) locks exact versions
+- In CI, prefer \`npm ci\` for clean, repeatable installs
+
+\`\`\`bash
+npm ci
+\`\`\`
+
+---
+
+## 3) Audit + update safely
+
+\`\`\`bash
+npm audit
+npm outdated
+\`\`\`
+
+Guidelines:
+- Update intentionally (especially major versions)
+- Remove unused deps (smaller attack surface)
+- Avoid unmaintained packages
+
+---
+
+## 4) Practical tips
+
+- Prefer a single package manager per repo.
+- Pin Node version (docs + CI) and keep it aligned.
+- Use a dependency bot for regular updates.
+`;
+    }
+
+    if (lowerTitle === 'node publish packages') {
+      return `# ${title}
+
+Publishing an npm package is about more than \`npm publish\`. You’re defining an API contract, versioning it, documenting it, and ensuring consumers can import it reliably.
+
+---
+
+## 1) Prepare your package
+
+- Clear \`name\`, \`version\`, \`main\` / \`exports\`
+- Include README + examples
+- Add tests and run them in CI
+
+---
+
+## 2) Versioning (SemVer)
+
+- patch: bug fixes
+- minor: new features (backward compatible)
+- major: breaking changes
+
+\`\`\`bash
+npm version patch
+\`\`\`
+
+---
+
+## 3) Publishing basics
+
+\`\`\`bash
+npm login
+npm publish
+\`\`\`
+
+---
+
+## 4) Best practices
+
+- Use 2FA for your npm account.
+- Restrict published files via \`files\` field or \`.npmignore\`.
+- Provide TypeScript types (\`types\` field) if possible.
+`;
+    }
+
+    if (lowerTitle === 'events module' || lowerTitle === 'eventemitter (events)') {
+      return `# ${title}
+
+The \`events\` module provides \`EventEmitter\`, a simple publish/subscribe primitive used throughout Node (streams, servers, internal APIs).
+
+---
+
+## 1) Basic usage
+
+\`\`\`js
+const { EventEmitter } = require('events');
+
+const bus = new EventEmitter();
+
+bus.on('saved', (id) => {
+  console.log('saved', id);
+});
+
+bus.emit('saved', 123);
+\`\`\`
+
+---
+
+## 2) \`on\` vs \`once\`
+
+- \`on\`: listen every time
+- \`once\`: auto-remove after first event
+
+---
+
+## 3) Avoid leaks
+
+- Remove listeners when no longer needed.
+- Beware adding listeners in loops.
+- Understand the \`MaxListenersExceededWarning\`.
+
+---
+
+## 4) Practice
+
+1) Build an in-memory event bus for “user.created”.
+2) Add \`once\` listener for one-time initialization.
+`;
+    }
+
+    if (lowerTitle === 'timers module') {
+      return `# ${title}
+
+Timers schedule work on the event loop. They’re used for retries, polling, timeouts, debouncing, and background tasks.
+
+---
+
+## 1) Core timer APIs
+
+\`\`\`js
+setTimeout(() => console.log('later'), 100);
+const id = setInterval(() => console.log('tick'), 1000);
+clearInterval(id);
+\`\`\`
+
+---
+
+## 2) \`setImmediate\` vs \`setTimeout\`
+
+- \`setImmediate\` queues work after I/O callbacks
+- \`setTimeout(fn, 0)\` queues work in the timers phase
+
+---
+
+## 3) Production tips
+
+- Always clear intervals on shutdown.
+- Prefer explicit timeouts for network requests.
+`;
+    }
+
+    if (lowerTitle === 'dns module') {
+      return `# ${title}
+
+The \`dns\` module helps resolve hostnames and query DNS records. In production systems, DNS behavior impacts reliability and latency.
+
+---
+
+## 1) Two common APIs
+
+- \`dns.lookup\`: uses OS facilities (often respects OS caching)
+- \`dns.resolve\`: performs DNS queries directly
+
+---
+
+## 2) Example
+
+\`\`\`js
+const dns = require('dns/promises');
+
+const ips = await dns.resolve4('example.com');
+console.log(ips);
+\`\`\`
+
+---
+
+## 3) Practical notes
+
+- DNS failures look like “random outages” if you don’t log them.
+- Understand timeouts + retries at the HTTP client layer.
+`;
+    }
+
+    if (lowerTitle === 'assert module') {
+      return `# ${title}
+
+Node ships with a built-in assertion library. Assertions are most useful in tests and internal invariants.
+
+---
+
+## 1) Basic usage
+
+\`\`\`js
+const assert = require('assert/strict');
+
+assert.equal(2 + 2, 4);
+assert.deepEqual({ a: 1 }, { a: 1 });
+\`\`\`
+
+---
+
+## 2) When to use
+
+- Unit tests
+- Validating assumptions in internal helpers
+
+---
+
+## 3) Best practice
+
+In web servers, prefer returning clear 4xx errors to clients rather than crashing via asserts.
+`;
+    }
+
+    if (lowerTitle === 'util module') {
+      return `# ${title}
+
+The \`util\` module provides practical helpers for Node development: formatting, inspection, and converting callback APIs to promises.
+
+---
+
+## 1) \`util.promisify\`
+
+\`\`\`js
+const util = require('util');
+const fs = require('fs');
+
+const readFile = util.promisify(fs.readFile);
+const data = await readFile('a.txt', 'utf8');
+\`\`\`
+
+---
+
+## 2) \`util.inspect\` for debugging
+
+\`\`\`js
+console.log(require('util').inspect(obj, { depth: 5 }));
+\`\`\`
+`;
+    }
+
+    if (lowerTitle === 'readline module' || lowerTitle === 'interface (readline)') {
+      return `# ${title}
+
+\`readline\` is used for building interactive CLIs: prompts, input parsing, and simple REPL-like tools.
+
+---
+
+## 1) Create an interface
+
+\`\`\`js
+const readline = require('readline');
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+rl.question('Name? ', (answer) => {
+  console.log('Hello', answer);
+  rl.close();
+});
+\`\`\`
+
+---
+
+## 2) Practice
+
+1) Build a CLI that asks 3 questions and outputs JSON.
+2) Add \`--json\` mode for machine-friendly output.
+`;
+    }
+
+    if (lowerTitle === 'node es6+') {
+      return `# ${title}
+
+Node supports modern JavaScript, but exact features depend on your Node version. In professional projects, align your Node version locally + CI + production.
+
+---
+
+## 1) ES6+ features you’ll use constantly
+
+- \`let\` / \`const\`
+- Arrow functions
+- Destructuring
+- Spread/rest
+- Template strings (remember to escape \`\${\` when writing template literals)
+- Optional chaining (\`?.\`) and nullish coalescing (\`??\`)
+
+---
+
+## 2) Practical guidance
+
+- Prefer a recent LTS Node.
+- Avoid transpiling unless you need to support older runtimes.
+- Use \`eslint\` to keep syntax consistent.
+`;
+    }
+
+    if (lowerTitle === 'node typescript') {
+      return `# ${title}
+
+TypeScript in Node improves maintainability by adding static types, safer refactors, and better IDE support.
+
+---
+
+## 1) Basic setup
+
+\`\`\`bash
+npm i -D typescript @types/node
+\`\`\`
+
+Create \`tsconfig.json\` with sane defaults for Node.
+
+---
+
+## 2) Dev workflow options
+
+- Compile then run: \`tsc\` → \`node dist/index.js\`
+- Use a TS runner (tsx/ts-node) in dev
+
+---
+
+## 3) Production best practice
+
+- Build to \`dist/\`
+- Run compiled JS in production
+- Generate sourcemaps for debugging
+`;
+    }
+
+    if (lowerTitle === 'node adv. typescript') {
+      return `# ${title}
+
+Advanced TypeScript helps large Node services stay correct as they grow.
+
+---
+
+## 1) Patterns worth learning
+
+- Discriminated unions for state machines
+- Type narrowing and type guards
+- Generics for reusable helpers
+- Inferring types from runtime validators (Zod, Yup, etc.)
+
+---
+
+## 2) Practical use cases
+
+- Strongly typed request/response DTOs
+- Safer database access layers
+- Safer config parsing (validate \`process.env\`)
+`;
+    }
+
+    if (lowerTitle === 'node lint & formatting') {
+      return `# ${title}
+
+Linting and formatting keep teams consistent and reduce code review noise.
+
+---
+
+## 1) Typical stack
+
+- ESLint for correctness
+- Prettier for formatting
+
+---
+
+## 2) Add scripts
+
+\`\`\`json
+{
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier . --write"
+  }
+}
+\`\`\`
+
+---
+
+## 3) Best practice
+
+- Run lint/tests in CI.
+- Use pre-commit hooks if the team agrees.
+`;
+    }
+
+    if (lowerTitle === 'node frameworks') {
+      return `# ${title}
+
+Node has many web frameworks. Choosing the right one depends on team size, performance needs, and architecture.
+
+---
+
+## Common Node frameworks
+
+- Express: minimal, huge ecosystem
+- Fastify: performance-focused, great plugin system
+- NestJS: opinionated, DI, enterprise patterns
+- Koa/Hapi: alternative ecosystems
+
+---
+
+## How to choose
+
+- Small API / fast iteration: Express or Fastify
+- Large org / strong structure: NestJS
+- High throughput: Fastify
+`;
+    }
+
+    if (lowerTitle === 'middleware concept') {
+      return `# ${title}
+
+Middleware is a pipeline pattern: each function can read/modify the request, end the response, or pass control to the next middleware.
+
+---
+
+## 1) Express-style middleware
+
+\`\`\`js
+app.use((req, res, next) => {
+  req.start = Date.now();
+  next();
+});
+
+app.get('/health', (req, res) => {
+  res.json({ ok: true, ms: Date.now() - req.start });
+});
+\`\`\`
+
+---
+
+## 2) Order matters
+
+- Body parsers before routes
+- Auth before protected routes
+- Error handler last
+`;
+    }
+
+    if (lowerTitle === 'api authentication') {
+      return `# ${title}
+
+Authentication answers: “Who is the user?” In Node APIs, common approaches are cookies (sessions) or bearer tokens (JWT / opaque tokens).
+
+---
+
+## 1) Session cookies (common for web apps)
+
+- Store session id in an httpOnly cookie
+- Session data stored in DB/Redis
+- Protect against CSRF
+
+---
+
+## 2) Bearer tokens (common for APIs)
+
+- Client sends \`Authorization: Bearer <token>\`
+- Validate signature (JWT) or lookup opaque token
+
+---
+
+## 3) Best practices
+
+- Hash stored tokens
+- Rotate secrets
+- Validate inputs and rate limit auth endpoints
+`;
+    }
+
+    if (lowerTitle === 'node.js with frontend') {
+      return `# ${title}
+
+Connecting a frontend to a Node backend is mostly about API contracts, auth, and environment-aware configuration.
+
+---
+
+## 1) Integration patterns
+
+- Same origin: Node serves frontend + API
+- Separate origins: frontend app calls API (CORS needed)
+
+---
+
+## 2) CORS and cookies
+
+- For cookie auth across origins, configure \`credentials\` and allowed origins carefully.
+
+---
+
+## 3) DX tips
+
+- Use a dev proxy to avoid CORS locally.
+- Generate API types (OpenAPI or shared TS types).
+`;
+    }
+
+    if (lowerTitle.startsWith('mysql ')) {
+      const op = lowerTitle.slice('mysql '.length);
+      const sqlByOp = {
+        'get started': 'CREATE DATABASE app_db;\n-- Connect using a driver and use a connection pool',
+        'create database': 'CREATE DATABASE app_db;',
+        'create table': 'CREATE TABLE users (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  email VARCHAR(255) NOT NULL UNIQUE,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);',
+        'insert into': 'INSERT INTO users (email) VALUES (?);',
+        'select from': 'SELECT id, email, created_at FROM users;',
+        'where': 'SELECT * FROM users WHERE email = ?;',
+        'order by': 'SELECT * FROM users ORDER BY created_at DESC;',
+        'delete': 'DELETE FROM users WHERE id = ?;',
+        'drop table': 'DROP TABLE users;',
+        'update': 'UPDATE users SET email = ? WHERE id = ?;',
+        'limit': 'SELECT * FROM users ORDER BY created_at DESC LIMIT 10;',
+        'join': 'SELECT o.id, u.email\nFROM orders o\nJOIN users u ON u.id = o.user_id;'
+      };
+
+      const sql = sqlByOp[op];
+      if (sql) {
+        return `# ${title}
+
+This lesson focuses on **${title}** in MySQL and the typical Node.js workflow: use a driver, use a pool, and use parameterized queries to avoid SQL injection.
+
+---
+
+## 1) SQL example
+
+\`\`\`sql
+${sql}
+\`\`\`
+
+---
+
+## 2) Node.js pattern (mysql2)
+
+\`\`\`js
+const mysql = require('mysql2/promise');
+
+const pool = mysql.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+});
+
+// Always use placeholders (?) for user input
+const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', ['a@b.com']);
+console.log(rows);
+\`\`\`
+
+---
+
+## 3) Best practices
+
+- Use placeholders for all user input.
+- Prefer a pool (not one connection per request).
+- Use migrations instead of ad-hoc manual SQL in production.
+`;
+      }
+    }
+
+    if (lowerTitle.startsWith('mongodb ')) {
+      const op = lowerTitle.slice('mongodb '.length);
+
+      const mongoByOp = {
+        'get started': {
+          summary: 'Connect to MongoDB, pick a database, and use a collection.'
+        },
+        'create db': {
+          summary: 'MongoDB databases are created implicitly on first write.'
+        },
+        'collection': {
+          summary: 'Collections store documents. Model documents intentionally and add indexes.'
+        },
+        'insert': {
+          summary: 'Insert documents with insertOne/insertMany.'
+        },
+        'find': {
+          summary: 'Read documents with find/findOne and project fields for efficiency.'
+        },
+        'query': {
+          summary: 'Queries match documents by fields; use indexes for speed.'
+        },
+        'sort': {
+          summary: 'Sort results; prefer indexed sorts for large datasets.'
+        },
+        'delete': {
+          summary: 'Delete with deleteOne/deleteMany and always scope deletes carefully.'
+        },
+        'drop collection': {
+          summary: 'Dropping removes the entire collection. Use with caution.'
+        },
+        'update': {
+          summary: 'Update with updateOne/updateMany and operators like $set.'
+        },
+        'limit': {
+          summary: 'Limit result size for pagination and performance.'
+        },
+        'join': {
+          summary: 'Mongo “joins” are typically done with aggregation and $lookup.'
+        }
+      };
+
+      const meta = mongoByOp[op];
+      if (meta) {
+        const exampleByOp = {
+          'insert': "await users.insertOne({ email: 'a@b.com', createdAt: new Date() });",
+          'find': "const doc = await users.findOne({ email: 'a@b.com' });",
+          'query': "const docs = await users.find({ active: true }).toArray();",
+          'sort': "const docs = await users.find({}).sort({ createdAt: -1 }).limit(10).toArray();",
+          'delete': "await users.deleteOne({ email: 'a@b.com' });",
+          'update': "await users.updateOne({ email: 'a@b.com' }, { $set: { active: true } });",
+          'limit': "const docs = await users.find({}).limit(10).toArray();",
+          'join': "const rows = await db.collection('orders').aggregate([\n  { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },\n]).toArray();"
+        };
+
+        const example = exampleByOp[op] || '/* example depends on the operation */';
+
+        return `# ${title}
+
+${meta.summary} In Node.js, you typically use the official MongoDB driver (or an ODM like Mongoose) and design documents + indexes intentionally.
+
+---
+
+## 1) Connect (official driver)
+
+\`\`\`js
+const { MongoClient } = require('mongodb');
+
+const client = new MongoClient(process.env.MONGODB_URI);
+await client.connect();
+
+const db = client.db('app');
+const users = db.collection('users');
+\`\`\`
+
+---
+
+## 2) Example for this topic
+
+\`\`\`js
+${example}
+\`\`\`
+
+---
+
+## 3) Best practices
+
+- Add indexes for frequent queries.
+- Avoid unbounded \`find()\` without limits in APIs.
+- Validate input shape (runtime validation) and consider schema versioning.
+`;
+      }
+    }
+
+    if (lowerTitle === 'graphql') {
+      return `# ${title}
+
+GraphQL in Node usually means running a GraphQL server (Apollo Server, Yoga, Mercurius) that exposes a schema and resolves fields from your data sources.
+
+---
+
+## 1) Core concepts
+
+- Schema (types)
+- Queries and mutations
+- Resolvers (how fields are fetched)
+
+---
+
+## 2) Performance + security concerns
+
+- Avoid N+1 queries (batching)
+- Add query complexity/depth limits
+- Enforce auth in resolvers
+
+---
+
+## 3) Practice
+
+1) Build a small schema for users + posts.
+2) Add auth for mutations.
+3) Add batching to avoid N+1.
+`;
+    }
+
+    if (lowerTitle === 'socket.io') {
+      return `# ${title}
+
+Socket.IO provides an event-based realtime layer on top of WebSockets (with fallbacks and extra features). It’s commonly used for chat, presence, notifications, and collaboration.
+
+---
+
+## 1) Key ideas
+
+- Server emits events to clients
+- Clients emit events to server
+- Rooms/namespaces organize connections
+
+---
+
+## 2) Typical concerns
+
+- Auth on connect
+- Scaling across instances (often with Redis adapter)
+- Message validation
+`;
+    }
+
+    if (lowerTitle === 'websockets') {
+      return `# ${title}
+
+WebSockets create a persistent, bi-directional connection between client and server. Use them for real-time features where polling is too slow or inefficient.
+
+---
+
+## 1) What to design
+
+- Message schema (event type + payload)
+- Auth strategy
+- Reconnect behavior
+- Rate limits
+
+---
+
+## 2) Scaling note
+
+If you run multiple server instances, you need a broadcast strategy (pub/sub) so messages reach the right clients.
+`;
+    }
+
+    if (lowerTitle === 'node adv. debugging') {
+      return `# ${title}
+
+Advanced debugging is about finding the root cause faster: breakpoints, profiling, tracing, and minimizing noisy logs.
+
+---
+
+## 1) Use the inspector
+
+\`\`\`bash
+node --inspect index.js
+\`\`\`
+
+Then attach Chrome DevTools or VS Code debugger.
+
+---
+
+## 2) Practical tools
+
+- \`console.time\` / \`console.timeEnd\`
+- Heap snapshots (memory leak hunting)
+- CPU profiles (hot paths)
+- Structured logs + request ids
+
+---
+
+## 3) Practice
+
+1) Profile an endpoint with slow JSON processing.
+2) Find and fix a memory leak caused by a growing array.
+`;
+    }
+
+    if (lowerTitle === 'node testing apps') {
+      return `# ${title}
+
+Testing Node apps typically includes unit tests (pure functions) and integration tests (API endpoints, database, queues).
+
+---
+
+## 1) What to test
+
+- Business logic (unit)
+- HTTP handlers (integration)
+- Auth and permissions
+- Error handling paths
+
+---
+
+## 2) Practical guidance
+
+- Use test DBs and reset state between tests.
+- Avoid testing implementation details.
+- Prefer fast tests; keep slow tests in a separate suite.
+`;
+    }
+
+    if (lowerTitle === 'node test frameworks') {
+      return `# ${title}
+
+Common Node testing frameworks include Jest, Vitest, Mocha, and the built-in Node test runner (in modern Node). Pick one and standardize.
+
+---
+
+## Selection guidelines
+
+- Jest: batteries included, common in many repos
+- Vitest: great with Vite toolchains
+- Mocha: flexible, older ecosystem
+- Node test runner: minimal, no extra deps
+`;
+    }
+
+    if (lowerTitle === 'node test runner') {
+      return `# ${title}
+
+Modern Node includes a built-in test runner that can run tests without extra dependencies.
+
+---
+
+## Run tests
+
+\`\`\`bash
+node --test
+\`\`\`
+
+---
+
+## Practical advice
+
+- Keep tests deterministic.
+- Use fixtures and reset shared state.
+- Use coverage tools as needed.
+`;
+    }
+
+    if (lowerTitle === 'node env variables') {
+      return `# ${title}
+
+Environment variables configure your app without hardcoding secrets or environment-specific values.
+
+---
+
+## 1) Common patterns
+
+- \`PORT\`, \`NODE_ENV\`
+- \`DATABASE_URL\`
+- API keys (server-only)
+
+---
+
+## 2) Validate config at startup
+
+Fail fast with clear error messages if a required variable is missing.
+
+---
+
+## 3) Best practices
+
+- Never commit real secrets.
+- Use different values for dev/staging/prod.
+- Prefer secret managers in production.
+`;
+    }
+
+    if (lowerTitle === 'node dev vs prod') {
+      return `# ${title}
+
+Dev and prod environments differ in performance, observability, and safety requirements.
+
+---
+
+## Key differences
+
+- Logging verbosity (debug in dev, structured in prod)
+- Error output (stack traces for dev, safe errors for users)
+- Performance (no dev-only hot reload overhead)
+- Security (strict headers, rate limits, secret handling)
+
+---
+
+## Practical checklist
+
+- Set \`NODE_ENV\` correctly.
+- Add health checks.
+- Handle SIGTERM for graceful shutdown.
+`;
+    }
+
+    if (lowerTitle === 'node ci/cd') {
+      return `# ${title}
+
+CI/CD automates: build → test → ship. A solid pipeline catches bugs early and makes deployments predictable.
+
+---
+
+## Typical CI steps
+
+1) Install dependencies (\`npm ci\`)
+2) Lint
+3) Test
+4) Build
+5) Deploy
+
+---
+
+## Practical advice
+
+- Cache dependencies carefully.
+- Don’t skip tests.
+- Use environment-specific configs and secrets.
+`;
+    }
+
+    if (lowerTitle === 'node security') {
+      return `# ${title}
+
+Node security is about minimizing attack surface and validating all inputs.
+
+---
+
+## 1) Common risks
+
+- Injection (SQL/NoSQL)
+- Broken auth
+- Dependency vulnerabilities
+- Leaking secrets
+
+---
+
+## 2) Practical defenses
+
+- Validate inputs at boundaries
+- Rate limit auth endpoints
+- Use safe cookie settings (httpOnly, secure)
+- Run \`npm audit\` regularly
+`;
+    }
+
+    if (lowerTitle === 'node deployment') {
+      return `# ${title}
+
+Deploying Node means packaging, running reliably, and observing the app in production.
+
+---
+
+## 1) Common deployment options
+
+- Docker container on a VM
+- PaaS (Render, Railway, etc.)
+- Kubernetes (larger orgs)
+- Serverless (some workloads)
+
+---
+
+## 2) Production basics
+
+- Graceful shutdown
+- Health checks
+- Environment variables
+- Process manager (optional, e.g., PM2)
+`;
+    }
+
+    if (lowerTitle === 'node logging') {
+      return `# ${title}
+
+Logs are how you debug production. Prefer structured logs so you can search and correlate events.
+
+---
+
+## 1) What to log
+
+- Request id
+- method + path + status
+- latency
+- error stack for server errors
+
+---
+
+## 2) Avoid
+
+- Logging secrets
+- Logging huge payloads
+`;
+    }
+
+    if (lowerTitle === 'node monitoring') {
+      return `# ${title}
+
+Monitoring answers: “Is the service healthy?” and “Why is it slow?”
+
+---
+
+## 1) Monitor these signals
+
+- Latency
+- Error rate
+- Traffic
+- Resource usage (CPU/memory)
+
+---
+
+## 2) Practical tools
+
+- Health endpoints
+- Metrics (Prometheus-style)
+- Tracing/APM (optional)
+`;
+    }
+
+    if (lowerTitle === 'node performance') {
+      return `# ${title}
+
+Node performance is mostly about event loop health, efficient I/O, avoiding unnecessary work, and using caching where appropriate.
+
+---
+
+## Common bottlenecks
+
+- Blocking sync code on the event loop
+- Large JSON processing
+- Too many DB queries
+- Missing caching
+
+---
+
+## Practical approach
+
+1) Measure (latency + CPU + memory)
+2) Profile hot paths
+3) Fix the real bottleneck
+`;
+    }
+
+    if (lowerTitle === 'child process module') {
+      return `# ${title}
+
+\`child_process\` runs external commands. Use it for tooling, media processing, or calling existing binaries.
+
+---
+
+## 1) Prefer \`spawn\` for streaming
+
+\`\`\`js
+const { spawn } = require('child_process');
+
+const p = spawn('node', ['-v']);
+p.stdout.on('data', (d) => console.log(d.toString()));
+\`\`\`
+
+---
+
+## 2) Security warning
+
+Never concatenate untrusted input into shell commands (command injection risk).
+`;
+    }
+
+    if (lowerTitle === 'cluster module' || lowerTitle === 'worker (cluster)') {
+      return `# ${title}
+
+\`cluster\` lets you run multiple Node processes to use multiple CPU cores for the same server. Modern apps often use containers/orchestrators instead, but it’s still useful knowledge.
+
+---
+
+## 1) Model
+
+- Primary process forks worker processes
+- Workers accept connections
+
+---
+
+## 2) Tradeoffs
+
+- More complexity (state sharing)
+- Prefer stateless servers + external shared stores (DB/Redis)
+`;
+    }
+
+    if (lowerTitle === 'worker threads') {
+      return `# ${title}
+
+Worker threads run JavaScript in parallel threads. Use them for CPU-heavy work that would block the event loop.
+
+---
+
+## When to use
+
+- Image/audio processing
+- Large data transforms
+- CPU-heavy crypto operations
+
+---
+
+## Practical note
+
+Keep workers focused and pass messages via structured cloning.
+`;
+    }
+
+    if (lowerTitle === 'microservices') {
+      return `# ${title}
+
+Microservices split a system into independently deployable services. They can help large teams scale, but add operational complexity.
+
+---
+
+## 1) Benefits
+
+- Independent deployments
+- Clear ownership boundaries
+
+---
+
+## 2) Costs
+
+- Distributed debugging
+- Network failures
+- Data consistency challenges
+
+---
+
+## 3) Guidance
+
+Start with a modular monolith and extract services only when needed.
+`;
+    }
+
+    if (lowerTitle === 'node webassembly') {
+      return `# ${title}
+
+WebAssembly (Wasm) lets Node run compiled code (Rust/C/C++) for performance-critical parts.
+
+---
+
+## When it helps
+
+- CPU-heavy algorithms
+- Image/video processing
+- Parsers/compilers
+
+---
+
+## Tradeoffs
+
+- Build/tooling complexity
+- Debugging complexity
+
+Use it after measuring real bottlenecks.
+`;
+    }
+
+    if (lowerTitle === 'perf_hooks module') {
+      return `# ${title}
+
+\`perf_hooks\` gives high-resolution timing and performance measurement tools for Node.
+
+---
+
+## Measure a function
+
+\`\`\`js
+const { performance } = require('perf_hooks');
+
+const t0 = performance.now();
+doWork();
+const t1 = performance.now();
+console.log('ms', t1 - t0);
+\`\`\`
+
+Use it to measure before optimizing.
+`;
+    }
+
+    if (lowerTitle === 'vm module') {
+      return `# ${title}
+
+The \`vm\` module executes JavaScript in a separate context. It’s useful for sandbox-like scenarios, but true security sandboxing is hard.
+
+---
+
+## Use case examples
+
+- Running user scripts (carefully)
+- Evaluating expressions
+
+---
+
+## Security note
+
+Do not assume \`vm\` is a perfect security boundary by itself.
+`;
+    }
+
+    if (lowerTitle === 'tls/ssl module') {
+      return `# ${title}
+
+TLS (SSL) encrypts traffic so data is protected in transit. In Node, TLS appears in HTTPS servers, secure TCP sockets, and mTLS setups.
+
+---
+
+## Practical reality
+
+- Most teams terminate TLS at a load balancer or reverse proxy.
+- Node still needs to understand headers/proxies and trust settings.
+
+---
+
+## What to learn
+
+- Certificates and private keys
+- HTTPS vs HTTP
+- Secure defaults and cipher suites (platform-managed when possible)
+`;
+    }
+
+    if (lowerTitle === 'net module') {
+      return `# ${title}
+
+\`net\` is low-level TCP networking. You can build custom protocols or internal services.
+
+---
+
+## TCP server example
+
+\`\`\`js
+const net = require('net');
+
+net.createServer((socket) => {
+  socket.write('hello\n');
+  socket.on('data', (d) => console.log(d.toString()));
+}).listen(4000);
+\`\`\`
+`;
+    }
+
+    if (lowerTitle === 'zlib module') {
+      return `# ${title}
+
+\`zlib\` compresses and decompresses data (gzip/deflate/brotli). It’s commonly used with streams.
+
+---
+
+## Gzip a file (streaming)
+
+\`\`\`js
+const fs = require('fs');
+const zlib = require('zlib');
+
+fs.createReadStream('in.txt')
+  .pipe(zlib.createGzip())
+  .pipe(fs.createWriteStream('in.txt.gz'));
+\`\`\`
+`;
+    }
+
+    if (lowerTitle === 'real-world examples') {
+      return `# ${title}
+
+Real-world Node projects combine core primitives (HTTP, streams, async, modules) with production concerns (auth, logging, monitoring).
+
+---
+
+## Project ideas
+
+1) REST API with auth + validation
+2) Background worker that processes a queue
+3) File upload service with virus scanning hook
+4) Realtime chat with WebSockets + Redis pub/sub
+
+---
+
+## What to include
+
+- tests
+- structured logs
+- environment-based config
+- graceful shutdown
+`;
+    }
+
+    if (lowerTitle === 'raspi get started') {
+      return `# ${title}
+
+Running Node on Raspberry Pi is a great way to learn hardware-adjacent programming. Focus on safe setup and simple scripts first.
+
+---
+
+## 1) Basic steps
+
+- Install a supported OS image.
+- Install an LTS Node version.
+- Run a hello-world script.
+
+---
+
+## 2) What you’ll build
+
+- Read sensors
+- Control GPIO outputs (LEDs)
+- Expose a small HTTP or WebSocket server
+`;
+    }
+
+    if (lowerTitle === 'raspi gpio introduction') {
+      return `# ${title}
+
+GPIO means General-Purpose Input/Output pins. With Node, you can read inputs (buttons) and control outputs (LEDs/relays) using a GPIO library.
+
+---
+
+## Safety reminder
+
+- Follow official Raspberry Pi guidelines.
+- Use correct resistors for LEDs.
+- Double-check wiring before powering on.
+
+---
+
+## Typical workflow
+
+1) Pick a GPIO library
+2) Configure pin modes
+3) Read/write values
+`;
+    }
+
+    if (lowerTitle === 'raspi blinking led') {
+      return `# ${title}
+
+Blinking an LED is the “hello world” of GPIO programming.
+
+---
+
+## Concept
+
+- Configure a pin as output
+- Toggle it on/off on an interval
+
+---
+
+## Practical guidance
+
+- Use a resistor with LEDs.
+- Clean up GPIO resources on exit.
+`;
+    }
+
+    if (lowerTitle === 'raspi led & pushbutton') {
+      return `# ${title}
+
+This topic combines GPIO output (LED) and input (button). The key concepts are pull-up/pull-down resistors and debouncing.
+
+---
+
+## What to learn
+
+- Read a button state
+- Toggle an LED
+- Debounce button presses
+`;
+    }
+
+    if (lowerTitle === 'raspi flowing leds') {
+      return `# ${title}
+
+Flowing LEDs means turning multiple LEDs on/off in sequence. It teaches arrays, loops, timing, and clean GPIO abstraction.
+
+---
+
+## Best practice
+
+- Store pin configs in an array
+- Use one timer to update a current index
+- Ensure cleanup on exit
+`;
+    }
+
+    if (lowerTitle === 'raspi websocket') {
+      return `# ${title}
+
+Expose a WebSocket server on the Pi so a browser UI can control hardware in real time.
+
+---
+
+## Architecture
+
+- Browser connects via WebSocket
+- Server receives events (toggle LED)
+- Server replies with state updates
+`;
+    }
+
+    if (lowerTitle === 'raspi rgb led websocket') {
+      return `# ${title}
+
+An RGB LED controlled via WebSockets teaches realtime messaging + hardware state.
+
+---
+
+## Key ideas
+
+- Represent color as an object (r/g/b)
+- Validate inputs (0-255)
+- Broadcast state to connected clients
+`;
+    }
+
+    if (lowerTitle === 'raspi components') {
+      return `# ${title}
+
+Common Raspberry Pi components include LEDs, buttons, resistors, sensors, and small displays. The main engineering skill is building reliable input/output handling.
+
+---
+
+## What to focus on
+
+- Correct wiring and power requirements
+- Debouncing inputs
+- Error handling + cleanup
+`;
+    }
+
+    if (lowerTitle.endsWith('(crypto)')) {
+      const apiName = title.split(' (')[0];
+      const n = apiName.toLowerCase();
+
+      if (n === 'hash' || n === 'hmac') {
+        return `# ${title}
+
+This API is used for integrity checks (hashes) and message authentication (HMAC). These are not the same as password hashing.
+
+---
+
+## When to use
+
+- Checksums for files
+- Signing/verification building blocks
+- HMAC for verifying messages
+
+---
+
+## Example (concept)
+
+\`\`\`js
+const crypto = require('crypto');
+
+const hash = crypto.createHash('sha256').update('data').digest('hex');
+\`\`\`
+`;
+      }
+
+      if (n === 'sign' || n === 'verify') {
+        return `# ${title}
+
+Signing and verifying are asymmetric cryptography primitives (private key signs, public key verifies). They’re used for JWTs, certificates, and secure message verification.
+
+---
+
+## Practical advice
+
+- Prefer well-reviewed higher-level libraries and standards.
+- Store private keys securely.
+- Avoid inventing your own crypto protocols.
+`;
+      }
+
+      return `# ${title}
+
+This is an advanced cryptography primitive in Node’s \`crypto\` module. It’s useful for secure systems, but should be used with care.
+
+---
+
+## Guidance
+
+- Prefer high-level libraries when possible.
+- Keep algorithms and key management secure.
+- Understand the difference between encryption, hashing, and signing.
+`;
+    }
+
+    if (lowerTitle === 'socket (dgram, net, tls)') {
+      return `# ${title}
+
+“Socket” objects represent network connections. Different modules provide different socket types:
+
+- UDP sockets (\`dgram\`)
+- TCP sockets (\`net\`)
+- TLS sockets (\`tls\`)
+
+---
+
+## What to learn
+
+- Connection lifecycle
+- Backpressure and buffering
+- Error handling and timeouts
+`;
+    }
+
+    if ((lowerTitle.includes('intro') || lowerTitle.includes('home')) && lowerTitle.startsWith('node')) {
       return `# ${title}
 
 Node.js is a JavaScript runtime environment that executes JavaScript outside browsers. Built on Chrome's V8 engine, Node.js enables server-side JavaScript development. Node.js uses an event-driven, non-blocking I/O model making it efficient for data-intensive real-time applications. Node.js revolutionized JavaScript by extending it beyond browsers.
@@ -17375,6 +20817,1201 @@ Server Components are default in App Router, rendering on the server for better 
 
 Professional Next.js applications leverage App Router's features for better performance, SEO, and developer experience. Understanding Server Components, data fetching patterns, and new Router features enables building cutting-edge applications. While Pages Router remains supported, App Router represents Next.js's future direction.`;
     }
+
+    if (lowerTitle.includes('pages router')) {
+      return `# ${title}
+
+The **Pages Router** is the original Next.js routing system that lives under the \`pages/\` directory. It’s still widely used, supported, and extremely productive—especially for classic SSR/SSG patterns.
+
+Use the Pages Router when:
+- you’re maintaining an existing codebase
+- you want a simpler mental model without Server Components
+- you rely on APIs like \`getServerSideProps\` and \`getStaticProps\`
+
+---
+
+## 1) File-based routing (Pages Router)
+
+Every file under \`pages/\` becomes a route.
+
+\`pages/index.tsx\` → \`/\`
+\`pages/about.tsx\` → \`/about\`
+\`pages/blog/[slug].tsx\` → \`/blog/my-post\`
+
+\`\`\`txt
+pages/
+  index.tsx
+  about.tsx
+  blog/
+    [slug].tsx
+\`\`\`
+
+---
+
+## 2) App wrappers: \`_app\` and \`_document\`
+
+- \`pages/_app.tsx\`: global layout wrapper, providers, global CSS.
+- \`pages/_document.tsx\`: advanced HTML document customization (rarely needed).
+
+---
+
+## 3) Data fetching patterns
+
+Pages Router ships with three core patterns:
+
+- **SSR**: \`getServerSideProps\` (runs per request)
+- **SSG**: \`getStaticProps\` (runs at build time)
+- **ISR**: \`revalidate\` option (refreshes static pages periodically)
+
+\`\`\`ts
+export async function getServerSideProps() {
+  return { props: { now: Date.now() } };
+}
+
+export default function Page({ now }: { now: number }) {
+  return <div>Rendered at: {now}</div>;
+}
+\`\`\`
+
+---
+
+## 4) When to migrate to App Router
+
+App Router unlocks:
+- nested \`layout.tsx\`
+- Server Components
+- Server Actions
+- advanced routing patterns (parallel/intercepting routes)
+
+But migration is a project: start with a single route segment and move incrementally.`;
+    }
+
+    if (lowerTitle.includes('file structure')) {
+      return `# ${title}
+
+Next.js projects look simple at first, but the structure matters because **routing, styling, and server/client boundaries** are all driven by files.
+
+---
+
+## 1) Typical folder layout
+
+\`\`\`txt
+.
+├─ app/                  # App Router routes (modern)
+│  ├─ layout.tsx
+│  ├─ page.tsx
+│  └─ dashboard/
+│     └─ page.tsx
+├─ pages/                # Pages Router routes (legacy/classic)
+├─ public/               # static assets (served at /)
+├─ src/                  # optional; some teams put app/ here
+├─ middleware.ts         # edge middleware (optional)
+├─ next.config.(js|ts)   # Next.js config
+├─ tsconfig.json
+└─ .env.local            # local env vars
+\`\`\`
+
+---
+
+## 2) Special files in App Router
+
+Inside \`app/\`, certain filenames have special meanings:
+- \`page.tsx\`: the route UI
+- \`layout.tsx\`: shared UI for a segment
+- \`loading.tsx\`: instant loading state (works with streaming)
+- \`error.tsx\`: error boundary for a segment
+- \`not-found.tsx\`: 404 UI for a segment
+- \`route.ts\`: API endpoint for the route segment
+
+---
+
+## 3) Where to put “regular” code
+
+Recommended conventions:
+- \`components/\`: shared UI
+- \`lib/\`: utilities, clients, fetch wrappers
+- \`services/\`: domain logic (payments, emails, etc.)
+- \`types/\`: shared types
+
+The key rule: keep **server-only** code out of client components. If it uses secrets, DB clients, or Node APIs, it should run server-side.
+
+---
+
+## 4) Environment files (quick rules)
+
+- \`.env.local\`: local development secrets
+- \`NEXT_PUBLIC_*\`: values exposed to the browser
+- never ship private keys to client bundles
+
+---
+
+## 5) A practical “sanity checklist”
+
+If a build fails, check:
+- did you accidentally import server-only code into a client component?
+- did you create a circular import between \`lib/\` modules?
+- are env vars present for the environment you’re running?`;
+    }
+
+    if (lowerTitle === 'routing' || lowerTitle.includes('routing')) {
+      return `# ${title}
+
+Routing in Next.js is **file-based**: the URL is derived from your folder structure. Next.js then gives you helpers to navigate and read params.
+
+---
+
+## 1) App Router: segment-based routing
+
+\`\`\`txt
+app/
+  page.tsx               -> /
+  settings/
+    page.tsx             -> /settings
+  blog/
+    [slug]/
+      page.tsx           -> /blog/:slug
+\`\`\`
+
+Dynamic segments:
+- \`[id]\` → required param
+- \`[...slug]\` → catch-all
+- \`[[...slug]]\` → optional catch-all
+
+---
+
+## 2) Reading params (App Router)
+
+In a client component, use \`useParams\`:
+
+\`\`\`tsx
+'use client';
+import { useParams } from 'next/navigation';
+
+export default function BlogPost() {
+  const { slug } = useParams<{ slug: string }>();
+  return <div>Post: {slug}</div>;
+}
+\`\`\`
+
+---
+
+## 3) Navigation
+
+- Use \`<Link />\` for navigation (prefetch + SPA-like transitions)
+- Use \`redirect()\` on the server for auth guards
+
+\`\`\`tsx
+import Link from 'next/link';
+
+export function Nav() {
+  return <Link href="/dashboard">Dashboard</Link>;
+}
+\`\`\`
+
+---
+
+## 4) Query params (search params)
+
+App Router lets server components receive \`searchParams\`:
+
+\`\`\`tsx
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
+  const sp = await searchParams;
+  return <div>q: {sp.q}</div>;
+}
+\`\`\`
+
+---
+
+## 5) Common pitfalls
+
+- don’t build URLs by string concatenation for complex routes; centralize routes
+- avoid putting sensitive logic in client-side navigation
+- keep route segments small and composable (nested layouts help)`;
+    }
+
+    if (lowerTitle.includes('layouts')) {
+      return `# ${title}
+
+Layouts are one of the biggest reasons to use the App Router: they let you keep UI **persistent** across route changes (navbars, sidebars, shells) while swapping the page content.
+
+---
+
+## 1) \`layout.tsx\` basics
+
+Every folder can define a \`layout.tsx\`. It wraps all children routes.
+
+\`\`\`tsx
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <header>My Navbar</header>
+        <main>{children}</main>
+      </body>
+    </html>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Nested layouts
+
+\`\`\`txt
+app/
+  layout.tsx
+  dashboard/
+    layout.tsx
+    page.tsx
+\`\`\`
+
+\`dashboard/layout.tsx\` wraps only \`/dashboard/*\` routes (great for sidebars).
+
+---
+
+## 3) Templates vs layouts
+
+- \`layout.tsx\` persists between navigations within the segment
+- \`template.tsx\` re-renders on navigation (use when you need fresh state)
+
+---
+
+## 4) Loading and error boundaries
+
+- \`loading.tsx\`: instant fallback UI while data streams
+- \`error.tsx\`: catches errors for that segment
+- \`not-found.tsx\`: segment-specific 404
+
+---
+
+## 5) Practical advice
+
+- keep root layout minimal (html/body + providers)
+- put heavy UI (dashboards) in nested layouts
+- do auth checks server-side and redirect early where possible`;
+    }
+
+    if (lowerTitle.includes('metadata')) {
+      return `# ${title}
+
+Metadata controls how your pages look in browser tabs, link previews (Open Graph), and search engines. In Next.js App Router, metadata is **first-class** and can be static or dynamic.
+
+---
+
+## 1) Static metadata
+
+\`\`\`ts
+export const metadata = {
+  title: 'PrepWise',
+  description: 'Full stack notes and interview prep',
+};
+\`\`\`
+
+---
+
+## 2) Dynamic metadata per page
+
+Use \`generateMetadata\` when the title depends on fetched data.
+
+\`\`\`ts
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  return { title: 'Post: ' + slug };
+}
+\`\`\`
+
+---
+
+## 3) Open Graph basics
+
+Good link previews typically need:
+- title + description
+- image
+- canonical URL strategy
+
+---
+
+## 4) Practical SEO checklist
+
+- one clear title per page
+- meaningful description (not keyword spam)
+- avoid duplicating titles site-wide
+- verify correct metadata on dynamic routes
+
+---
+
+## 5) Debugging
+
+Use browser DevTools and “view page source” to confirm server-rendered metadata is present (important for SEO bots).`;
+    }
+
+    if (lowerTitle.includes('fonts')) {
+      return `# ${title}
+
+Fonts affect performance and perceived polish. Next.js provides **built-in font optimization** so you can load fonts without layout shifts and without manually managing \`@font-face\`.
+
+---
+
+## 1) Google fonts via \`next/font\`
+
+\`\`\`ts
+import { Inter } from 'next/font/google';
+
+export const inter = Inter({ subsets: ['latin'] });
+\`\`\`
+
+Then apply it in a layout:
+
+\`\`\`tsx
+import { inter } from './fonts';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body className={inter.className}>{children}</body>
+    </html>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Local fonts
+
+Local fonts are great when you need full control or brand fonts:
+
+\`\`\`ts
+import localFont from 'next/font/local';
+
+export const brand = localFont({ src: './Brand.woff2' });
+\`\`\`
+
+---
+
+## 3) Avoid common font mistakes
+
+- loading fonts via external CSS can cause layout shift
+- too many font weights increases download size
+- define fallbacks (system-ui) for resilience
+
+---
+
+## 4) What “good” looks like
+
+- minimal weights (usually 2–3)
+- no CLS from late font swapping
+- consistent typography scale across the app`;
+    }
+
+    if (lowerTitle.includes('edge rendering')) {
+      return `# ${title}
+
+“Edge rendering” means running your code on an **edge runtime** (closer to users) instead of a traditional Node.js server. This can reduce latency for tasks like auth checks, redirects, geo-based routing, and lightweight API responses.
+
+---
+
+## 1) When edge is a good fit
+
+- auth / session checks at the request boundary
+- redirects and rewrites
+- lightweight personalization (geo, device hints)
+- fast, cache-friendly endpoints
+
+---
+
+## 2) Constraints (important)
+
+Edge runtimes typically **do not support** many Node-only APIs:
+- file system access
+- most native Node modules
+- long-running CPU work
+
+Design edge logic to be:
+- fast
+- I/O driven (\`fetch\`)
+- small in dependencies
+
+---
+
+## 3) Example: edge route handler
+
+\`\`\`ts
+export const runtime = 'edge';
+
+export async function GET() {
+  const now = new Date().toISOString();
+  return Response.json({ ok: true, now });
+}
+\`\`\`
+
+---
+
+## 4) Practical guidance
+
+- keep heavy DB logic on the Node runtime
+- prefer edge for routing/auth “front-door” logic
+- measure latency before and after; edge isn’t automatically faster for every workload`;
+    }
+
+    if (lowerTitle === 'rendering') {
+      return `# ${title}
+
+Rendering in Next.js is about **where** your UI runs and **when** HTML is produced.
+
+Two concepts often get mixed up:
+- **Server Components vs Client Components** (where components execute)
+- **SSR/SSG/ISR** (when HTML is generated and how it’s cached)
+
+---
+
+## 1) Server Components (default in App Router)
+
+Server Components run on the server, so they can:
+- read secrets safely
+- talk to databases
+- fetch data without exposing credentials
+
+\`\`\`tsx
+// Server Component (no 'use client')
+export default async function Page() {
+  const res = await fetch('https://example.com/api', { cache: 'no-store' });
+  const data = await res.json();
+  return <pre>{JSON.stringify(data, null, 2)}</pre>;
+}
+\`\`\`
+
+---
+
+## 2) Client Components (for interactivity)
+
+Client Components run in the browser and can use hooks, event handlers, and browser APIs.
+
+\`\`\`tsx
+'use client';
+import { useState } from 'react';
+
+export function Counter() {
+  const [n, setN] = useState(0);
+  return <button onClick={() => setN(n + 1)}>Count: {n}</button>;
+}
+\`\`\`
+
+---
+
+## 3) Rule of thumb
+
+- default to Server Components
+- add Client Components only where you need interactivity
+- keep server-only utilities (DB clients, secrets) out of client bundles
+
+---
+
+## 4) Common pitfalls
+
+- hydration mismatches (server HTML differs from client render)
+- importing Node-only code into client components
+- doing heavy work in middleware/edge (keep it small)`;
+    }
+
+    if (lowerTitle.includes('streaming')) {
+      return `# ${title}
+
+Streaming lets Next.js send HTML to the browser **in chunks** as parts of the page become ready. This improves perceived performance: users see the shell quickly, then data-heavy sections fill in.
+
+---
+
+## 1) The building blocks
+
+- \`loading.tsx\` provides instant route-level fallback UI
+- \`<Suspense />\` provides component-level fallback UI
+
+---
+
+## 2) Example: component streaming with Suspense
+
+\`\`\`tsx
+import { Suspense } from 'react';
+
+async function SlowSection() {
+  await new Promise((r) => setTimeout(r, 500));
+  return <div>Loaded!</div>;
+}
+
+export default function Page() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <Suspense fallback={<div>Loading section…</div>}>
+        {/* @ts-expect-error Server Component */}
+        <SlowSection />
+      </Suspense>
+    </div>
+  );
+}
+\`\`\`
+
+---
+
+## 3) Best practices
+
+- stream “below the fold” sections first
+- keep skeletons stable to avoid layout shift
+- don’t over-suspend everything (too many boundaries can feel janky)
+
+---
+
+## 4) How to debug
+
+- use network throttling in DevTools
+- verify the UI becomes interactive at the right time
+- watch for waterfalls in data fetching (parallelize when possible)`;
+    }
+
+    if (lowerTitle.includes('fetching')) {
+      return `# ${title}
+
+Data fetching in Next.js App Router is designed around **server-first** rendering and **smart caching**.
+
+---
+
+## 1) Fetch on the server by default
+
+Server components can \`await fetch(...)\` directly.
+
+---
+
+## 2) Caching controls
+
+Common patterns:
+- always fresh: \`cache: 'no-store'\`
+- time-based cache: \`next: { revalidate: 60 }\`
+
+\`\`\`ts
+// Fresh each request
+await fetch('https://example.com/api', { cache: 'no-store' });
+
+// Cache + revalidate every 60s
+await fetch('https://example.com/api', { next: { revalidate: 60 } });
+\`\`\`
+
+---
+
+## 3) Avoid waterfalls
+
+If you need multiple requests, do them in parallel:
+
+\`\`\`ts
+const [a, b] = await Promise.all([
+  fetch('https://example.com/a').then((r) => r.json()),
+  fetch('https://example.com/b').then((r) => r.json()),
+]);
+\`\`\`
+
+---
+
+## 4) Server Actions vs API Routes
+
+- use Server Actions for form submissions and mutations tightly coupled to UI
+- use API routes for webhooks, third-party callbacks, or when you need a stable HTTP contract
+
+---
+
+## 5) Security reminder
+
+Never fetch private resources from the client if it requires secrets. Fetch on the server and pass only the needed data to client components.`;
+    }
+
+    if (lowerTitle === 'images' || lowerTitle.includes('images')) {
+      return `# ${title}
+
+Next.js provides \`next/image\` to serve images efficiently with lazy loading, responsive sizing, and modern formats when possible.
+
+---
+
+## 1) Basic usage
+
+\`\`\`tsx
+import Image from 'next/image';
+
+export function Logo() {
+  return (
+    <Image
+      src="/logo.png"
+      alt="PrepWise logo"
+      width={128}
+      height={128}
+      priority
+    />
+  );
+}
+\`\`\`
+
+---
+
+## 2) Responsive images (sizes)
+
+If an image changes size across breakpoints, provide \`sizes\` so the browser downloads the right asset.
+
+---
+
+## 3) Common mistakes
+
+- forgetting \`alt\` text (accessibility)
+- using images without known dimensions (layout shift)
+- not configuring remote image domains when loading from a CDN
+
+---
+
+## 4) Practical guidance
+
+- use \`priority\` only for above-the-fold hero images
+- compress assets before shipping
+- prefer SVG for icons and simple illustrations`;
+    }
+
+    if (lowerTitle.includes('styling')) {
+      return `# ${title}
+
+Next.js supports multiple styling approaches. The best choice depends on team preferences, design system, and how much you value type-safe composition.
+
+---
+
+## 1) Common options
+
+- **Global CSS** (import once in root layout)
+- **CSS Modules** (scoped styles per component)
+- **Tailwind CSS** (utility-first)
+- **Component libraries** (shadcn/ui, etc.)
+
+---
+
+## 2) CSS Modules example
+
+\`\`\`txt
+components/
+  Button.tsx
+  Button.module.css
+\`\`\`
+
+---
+
+## 3) Tailwind + design tokens
+
+Tailwind is popular because:
+- styles live with the component
+- responsive and state styling is fast
+- design tokens can be centralized
+
+---
+
+## 4) Avoid “style drift”
+
+- define spacing + typography scales
+- centralize colors as tokens
+- prefer composition over copy/paste
+
+---
+
+## 5) Production checklist
+
+- verify dark mode (if supported)
+- check focus states (keyboard navigation)
+- confirm readable contrast ratios`;
+    }
+
+    if (lowerTitle.includes('tailwind')) {
+      return `# ${title}
+
+Tailwind CSS is a utility-first framework that makes it easy to build consistent UI without writing lots of custom CSS. The big idea: compose small classes instead of naming everything.
+
+---
+
+## 1) The core pattern
+
+\`\`\`tsx
+export function Card({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 md:p-6">
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <p className="mt-2 text-slate-300">{body}</p>
+    </div>
+  );
+}
+\`\`\`
+
+---
+
+## 2) Responsive + state modifiers
+
+- \`md:p-6\` applies from the md breakpoint
+- \`hover:bg-slate-900\` applies on hover
+- \`focus-visible:ring-2\` improves keyboard UX
+
+---
+
+## 3) Keep it maintainable
+
+- extract repeated patterns into components
+- use \`clsx\` / \`cva\` for variants (size, intent)
+- avoid huge class strings by composing smaller components
+
+---
+
+## 4) Debugging Tailwind
+
+- inspect computed styles in DevTools
+- check specificity collisions (custom CSS can override utilities)
+- ensure the build scans the right files for class names`;
+    }
+
+    if (lowerTitle.includes('shadcn')) {
+      return `# ${title}
+
+shadcn/ui is a **copy-paste component system** built on top of Radix primitives and Tailwind tokens. It’s not a “black box library”: the components live in your codebase, so you can customize them freely.
+
+---
+
+## 1) Why teams use it
+
+- consistent, accessible primitives
+- full control over code
+- easy theming with CSS variables + Tailwind tokens
+
+---
+
+## 2) Typical workflow
+
+You add components via a CLI which writes files into your repo.
+
+\`\`\`bash
+# example workflow
+npx shadcn-ui add button
+\`\`\`
+
+---
+
+## 3) Customization mindset
+
+- treat components as “your code”, not vendor code
+- build app-specific components on top of primitives
+- avoid editing generated code repeatedly; wrap when possible
+
+---
+
+## 4) Pitfalls
+
+- duplicating components with slight differences (variant explosion)
+- mixing multiple design systems
+- ignoring accessibility states (focus, disabled, aria)
+
+---
+
+## 5) What “good” looks like
+
+- one button component with variants
+- one input component with consistent labeling/errors
+- consistent spacing + typography across screens`;
+    }
+
+    if (lowerTitle.includes('nextauth')) {
+      return `# ${title}
+
+NextAuth (now commonly referred to as Auth.js in newer ecosystems) is a popular authentication solution for Next.js apps. It supports OAuth providers, email login, credentials, sessions, and secure server-side helpers.
+
+---
+
+## 1) What NextAuth gives you
+
+- login via providers (GitHub/Google/etc.)
+- session management
+- server-side helpers to read the current user
+- callbacks to control auth behavior
+
+---
+
+## 2) App Router mental model
+
+In App Router, auth is typically:
+- configured server-side
+- exposed via route handlers
+- consumed in server components for gating
+
+---
+
+## 3) Security basics
+
+- keep secrets in env vars
+- validate provider callbacks
+- lock down redirect URLs
+- apply authorization checks (authn != authz)
+
+---
+
+## 4) Session strategies
+
+- cookie-based sessions
+- JWT-based sessions
+
+Choose based on:
+- scalability needs
+- ability to revoke sessions
+- data you need on every request
+
+---
+
+## 5) Production checklist
+
+- secure cookies (HttpOnly, Secure, SameSite)
+- correct domain settings
+- rotate secrets when needed
+- add logging for auth failures`;
+    }
+
+    if (lowerTitle.includes('middleware auth')) {
+      return `# ${title}
+
+Middleware-based auth is about protecting routes **before** rendering. It’s great for redirects and gating access early, but it should stay lightweight.
+
+---
+
+## 1) A common pattern
+
+- identify protected paths
+- read a cookie or header
+- redirect unauthenticated users
+
+\`\`\`ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(req: NextRequest) {
+  const token = req.cookies.get('token')?.value;
+
+  if (!token) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/dashboard/:path*'],
+};
+\`\`\`
+
+---
+
+## 2) Keep middleware small
+
+- avoid database calls
+- avoid heavy crypto in edge environments
+- do deep authorization checks on the server after redirect gating
+
+---
+
+## 3) Don’t block assets
+
+Make sure your matcher doesn’t accidentally protect:
+- \`/_next\`
+- \`/favicon.ico\`
+- public assets
+
+---
+
+## 4) Defense-in-depth
+
+Middleware is a guardrail, not the only guard. Always check permissions again in server actions / route handlers / backend APIs.`;
+    }
+
+    if (lowerTitle.includes('jwt')) {
+      return `# ${title}
+
+JWT (JSON Web Token) is a compact way to represent authenticated identity + claims. In Next.js, the safest approach is usually:
+
+- generate/verify JWT **on the server**
+- store it in an **HttpOnly cookie**
+- read it in middleware/server components/route handlers
+
+---
+
+## 1) Cookie storage recommendations
+
+Prefer:
+- HttpOnly (not readable by JS)
+- Secure (HTTPS only)
+- SameSite=Lax or Strict (depends on your flows)
+
+Avoid:
+- localStorage/sessionStorage for auth tokens (XSS risk)
+
+---
+
+## 2) Reading tokens (server-side)
+
+\`\`\`ts
+import { cookies } from 'next/headers';
+
+export async function GET() {
+  const token = (await cookies()).get('token')?.value;
+  if (!token) return new Response('Unauthorized', { status: 401 });
+  return Response.json({ ok: true });
+}
+\`\`\`
+
+---
+
+## 3) Authorization still matters
+
+JWT proves “who you are” (authentication). You still need checks for “what you can do” (authorization) for every sensitive action.
+
+---
+
+## 4) Rotation + revocation
+
+For production:
+- consider short-lived access tokens
+- refresh tokens (stored securely)
+- server-side revocation strategy when needed`;
+    }
+
+    if (lowerTitle.includes('caching')) {
+      return `# ${title}
+
+Caching in Next.js is layered. Understanding the layers helps you avoid “why is my page stale?” or “why did this suddenly become dynamic?”
+
+---
+
+## 1) Common caching layers (conceptual)
+
+- **Data cache**: results of \`fetch\` and server-side data requests
+- **Route cache**: rendered output for routes that can be cached
+- **Client router cache**: what the client keeps while navigating
+
+---
+
+## 2) The knobs you’ll use most
+
+- \`cache: 'no-store'\` (always fresh)
+- \`next: { revalidate: N }\` (time-based)
+- tags + invalidation (advanced)
+
+---
+
+## 3) Don’t cache secrets
+
+Avoid caching responses that include:
+- user-specific data
+- tokens
+- sensitive content
+
+---
+
+## 4) Debugging stale data
+
+- confirm which component is server vs client
+- check fetch options used in each request
+- look for a hidden “dynamic” trigger (cookies, headers, auth)
+
+---
+
+## 5) Good caching strategy
+
+- cache public content aggressively
+- revalidate on content updates
+- keep authenticated pages dynamic unless you truly know what you’re doing`;
+    }
+
+    if (lowerTitle.includes('revalidation')) {
+      return `# ${title}
+
+Revalidation is how you refresh cached pages/data without rebuilding your whole app.
+
+---
+
+## 1) Time-based revalidation
+
+You can revalidate data on an interval:
+
+\`\`\`ts
+await fetch('https://example.com/posts', { next: { revalidate: 60 } });
+\`\`\`
+
+---
+
+## 2) On-demand revalidation
+
+Trigger revalidation after a mutation (CMS update, admin action, etc.).
+
+\`\`\`ts
+import { revalidatePath } from 'next/cache';
+
+export async function POST() {
+  // mutate data...
+  revalidatePath('/blog');
+  return Response.json({ ok: true });
+}
+\`\`\`
+
+---
+
+## 3) Path vs tag
+
+- \`revalidatePath\` is simple: refresh a route
+- tags are more flexible: refresh multiple routes sharing a tag
+
+---
+
+## 4) Best practices
+
+- revalidate right after writes
+- use tags for shared datasets (e.g., “posts”)
+- log and monitor revalidation calls in production`;
+    }
+
+    if (lowerTitle.includes('parallel routes')) {
+      return `# ${title}
+
+Parallel routes let you render **multiple sibling UI trees** under the same URL. This is great for dashboards where sections load independently or for complex layouts that have independent “slots”.
+
+---
+
+## 1) The file-system idea
+
+Parallel routes use \`@slot\` folders:
+
+\`\`\`txt
+app/
+  dashboard/
+    layout.tsx
+    page.tsx
+    @analytics/page.tsx
+    @team/page.tsx
+\`\`\`
+
+---
+
+## 2) Layout receives slots as props
+
+\`\`\`tsx
+export default function Layout({
+  children,
+  analytics,
+  team,
+}: {
+  children: React.ReactNode;
+  analytics: React.ReactNode;
+  team: React.ReactNode;
+}) {
+  return (
+    <div>
+      <main>{children}</main>
+      <aside>{analytics}</aside>
+      <section>{team}</section>
+    </div>
+  );
+}
+\`\`\`
+
+---
+
+## 3) Why it matters
+
+- independent loading states per slot
+- modular page composition
+- better UX for large pages
+
+---
+
+## 4) Gotchas
+
+- define defaults (\`default.tsx\`) where needed
+- keep data dependencies per slot to avoid global waterfalls
+- don’t overcomplicate simple pages`;
+    }
+
+    if (lowerTitle.includes('intercepting routes')) {
+      return `# ${title}
+
+Intercepting routes let you “open” a route **on top of** another route—commonly used for modals. You keep the URL meaningful (shareable) while preserving the background page.
+
+---
+
+## 1) The mental model
+
+- user is on \`/feed\`
+- clicking an item navigates to \`/feed/item/123\`
+- but UI shows a modal overlay, not a full page transition
+
+---
+
+## 2) How it works (high level)
+
+Next.js provides folder conventions like \`(.)\` and \`(..)\` to intercept navigation at different segment levels.
+
+---
+
+## 3) Combine with parallel routes
+
+The most common setup is:
+- a main slot for the page
+- a modal slot (parallel route) that intercepts
+
+---
+
+## 4) Best practices
+
+- ensure the modal route can also render as a full page when directly visited
+- manage focus (accessibility)
+- close modal by navigating back, not by hiding state only`;
+    }
+
+    if (lowerTitle.includes('error handling')) {
+      return `# ${title}
+
+Errors happen: network failures, unexpected data, permission issues. Next.js gives you structured ways to handle errors at different boundaries.
+
+---
+
+## 1) Segment error boundaries
+
+Create \`error.tsx\` in a route segment to catch rendering/runtime errors for that segment.
+
+---
+
+## 2) Not found handling
+
+Use \`not-found.tsx\` for custom 404 UI and server helpers (like \`notFound()\`) to programmatically trigger it.
+
+---
+
+## 3) Route handlers
+
+In \`route.ts\` handlers, return meaningful status codes:
+- 400 for validation
+- 401/403 for auth
+- 404 for missing resources
+- 500 for unexpected failures
+
+---
+
+## 4) Don’t leak sensitive errors
+
+- log detailed errors server-side
+- show friendly messages to users
+- include a request id for support/debugging
+
+---
+
+## 5) Production checklist
+
+- centralize logging
+- add alerting for spikes in failures
+- add retries/backoff where appropriate (client + server)`;
+    }
+
     if (lowerTitle.includes('ssr') || lowerTitle.includes('server-side rendering')) {
       return `# ${title}
 
@@ -17446,307 +22083,2143 @@ Professional Next.js applications use API Routes for form handlers, authenticati
 
   // Databases Topics
   if (category === 'Databases') {
-    if (lowerTitle.includes('sql') || lowerTitle.includes('mysql') || lowerTitle.includes('postgresql')) {
+    if (lowerTitle === 'sql intro') {
       return `# ${title}
 
-SQL (Structured Query Language) is the standard language for relational database management. SQL databases like MySQL and PostgreSQL organize data into tables with defined schemas. Understanding SQL is fundamental for backend development, as most applications require persistent data storage with ACID guarantees.
+SQL (Structured Query Language) is the foundation of relational databases. It lets you define a schema (tables + constraints) and query data efficiently with strong consistency guarantees (ACID). Even when you use an ORM, understanding SQL helps you model data correctly and debug performance problems.
 
-SQL operations include SELECT (retrieve data), INSERT (add records), UPDATE (modify records), and DELETE (remove records). WHERE clauses filter results, JOIN combines tables, GROUP BY aggregates data, and ORDER BY sorts results. SQL databases ensure data integrity through constraints, foreign keys, and transactions.
+---
 
-Relational databases excel at structured data with relationships between entities. Strong typing, normalization, and ACID properties ensure data consistency. SQL databases scale vertically and support complex queries. PostgreSQL adds advanced features like JSON columns, full-text search, and custom types.
+## 1) The relational mental model
 
-Professional applications use SQL databases for transactional data, user accounts, orders, and relational data. Understanding schema design, indexing, query optimization, and transaction management is crucial. SQL skills are essential for backend developers. ORMs like Prisma abstract SQL but understanding underlying concepts remains important.`;
+- A **table** stores rows (records) with fixed columns (fields).
+- A **primary key** uniquely identifies a row.
+- A **foreign key** references a row in another table, representing relationships.
+- **Constraints** (NOT NULL, UNIQUE, CHECK) protect data integrity.
+
+---
+
+## 2) DDL vs DML (two kinds of SQL you use daily)
+
+- **DDL (Data Definition Language)**: CREATE, ALTER, DROP (shape of the database)
+- **DML (Data Manipulation Language)**: SELECT, INSERT, UPDATE, DELETE (data inside the schema)
+
+---
+
+## 3) A tiny schema example
+
+\`\`\`sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  name VARCHAR(100),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE posts (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  body TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users(id)
+);
+\`\`\`
+
+---
+
+## 4) Query building blocks
+
+\`\`\`sql
+-- Create
+INSERT INTO users (id, email, name)
+VALUES (1, 'a@example.com', 'A');
+
+-- Read
+SELECT id, email, created_at
+FROM users
+WHERE email LIKE '%@example.com'
+ORDER BY created_at DESC
+LIMIT 10;
+
+-- Update
+UPDATE users
+SET name = 'A Updated'
+WHERE id = 1;
+
+-- Delete
+DELETE FROM posts
+WHERE user_id = 1;
+\`\`\`
+
+---
+
+## 5) NULLs and safe querying
+
+- NULL means “unknown”, so comparisons need special operators:
+  - Use \`IS NULL\` / \`IS NOT NULL\`, not \`= NULL\`.
+  - Use \`COALESCE(value, fallback)\` to replace NULLs.
+- Always use **parameterized queries** in app code to prevent SQL injection. Placeholders depend on your driver (e.g., \`?\` or \`$1\`).
+
+---
+
+## What to practice
+
+- Model 3 entities (Users, Orders, Products) with keys + constraints
+- Write 10 SELECT queries using WHERE, ORDER BY, LIMIT
+- Add a UNIQUE constraint and observe failures on duplicates
+`;
     }
-    if (lowerTitle.includes('mongodb') || lowerTitle.includes('nosql')) {
+
+    if (lowerTitle === 'mysql basics') {
       return `# ${title}
 
-MongoDB is a NoSQL document database storing data in JSON-like documents. MongoDB provides flexibility with schema-less design, horizontal scalability, and natural data modeling. Understanding MongoDB is valuable for applications requiring flexible schemas, rapid development, or massive scalability.
+MySQL is a widely used relational database (often paired with Node.js). Most modern MySQL deployments use the InnoDB storage engine, which supports transactions, foreign keys, and row-level locking. This lesson focuses on core MySQL features you’ll use in real applications.
 
-MongoDB stores documents in collections (similar to tables). Documents are JSON objects with nested structures and arrays. MongoDB queries use JavaScript-like syntax. CRUD operations include insertOne, find, updateMany, and deleteOne. Aggregation pipelines process data through multiple stages.
+---
 
-MongoDB excels at flexible data models, horizontal scaling (sharding), and development speed. Document model matches application objects naturally. However, MongoDB trades strong consistency guarantees for scalability and flexibility. Multi-document transactions are supported but less efficient than SQL.
+## 1) MySQL essentials
 
-Professional applications use MongoDB for content management, catalogs, user profiles, and real-time analytics. Understanding document design, indexing, aggregation, and replication is crucial. Combining MongoDB with SQL databases (polyglot persistence) leverages each database's strengths for different data types.`;
+- Default engine (recommended): **InnoDB**
+- Character set: use **utf8mb4** to correctly store emoji and multilingual text
+- Common environments: local Docker, managed services, or cloud databases
+
+---
+
+## 2) Creating tables the “real world” way
+
+\`\`\`sql
+CREATE TABLE users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  email VARCHAR(255) NOT NULL,
+  name VARCHAR(100),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_users_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+\`\`\`
+
+Tips:
+- Prefer **BIGINT** for IDs in long-lived systems.
+- Keep frequently searched fields (like email) indexed and UNIQUE.
+
+---
+
+## 3) Reading data efficiently
+
+\`\`\`sql
+SELECT id, email, created_at
+FROM users
+WHERE email = 'a@example.com';
+\`\`\`
+
+Use \`EXPLAIN\` to check index usage:
+
+\`\`\`sql
+EXPLAIN SELECT id, email FROM users WHERE email = 'a@example.com';
+\`\`\`
+
+---
+
+## 4) Transactions, locking, and common pitfalls
+
+- InnoDB transactions protect multi-step updates.
+- MySQL defaults to **REPEATABLE READ** isolation in many configs; this can impact locking behavior.
+- Expect deadlocks in production; design code to retry transactions that fail with transient errors.
+
+---
+
+## 5) Operational basics (what backend engineers are expected to know)
+
+- Backups and restores (logical dumps or snapshot backups)
+- Connection pooling (do not open a new DB connection per request)
+- Slow query logs + indexing strategy based on real query patterns
+`;
     }
-    if (lowerTitle.includes('prisma') || lowerTitle.includes('orm')) {
+
+    if (lowerTitle === 'postgresql') {
       return `# ${title}
 
-Prisma is a modern ORM (Object-Relational Mapping) tool for Node.js and TypeScript. Prisma provides type-safe database access, automatic migrations, and intuitive query API. Prisma simplifies database operations while maintaining performance and flexibility. Prisma has become the leading ORM for modern TypeScript applications.
+PostgreSQL (Postgres) is a powerful, standards-focused relational database with excellent performance and advanced features. It’s a common default for modern startups and production systems because it combines strong correctness guarantees with flexibility (JSON, full-text search, extensions).
 
-Prisma schema defines data models in readable syntax. Prisma generates type-safe client code matching schema exactly. Migrations handle database schema changes. Prisma Client provides chainable query API: prisma.user.findMany(). Relations, filtering, sorting, and pagination are elegant and type-safe.
+---
 
-Prisma supports PostgreSQL, MySQL, SQLite, SQL Server, and MongoDB. Prisma Migrate handles schema changes and version control. Prisma Studio provides visual database browser. Type safety prevents runtime errors from typos or schema mismatches. Generated types integrate seamlessly with TypeScript.
+## 1) Why Postgres is popular
 
-Professional TypeScript applications prefer Prisma for database access. Prisma balances abstraction with control, supports raw SQL when needed, and optimizes queries automatically. Understanding Prisma schema, migrations, and query API enables building database-backed applications efficiently with excellent developer experience and type safety.`;
+- Strong SQL support (CTEs, window functions)
+- Rich data types (UUID, JSONB, arrays, enums)
+- Powerful indexing (B-tree, GIN, GiST, BRIN)
+- Concurrency model with MVCC (high read concurrency)
+
+---
+
+## 2) A practical table with modern defaults
+
+\`\`\`sql
+CREATE TABLE users (
+  id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  profile JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+\`\`\`
+
+---
+
+## 3) Querying JSONB (real-world feature)
+
+\`\`\`sql
+SELECT id, email
+FROM users
+WHERE profile ->> 'city' = 'Pune';
+\`\`\`
+
+For performance, JSONB often uses GIN indexes when you query inside JSON frequently.
+
+---
+
+## 4) Upserts with ON CONFLICT
+
+\`\`\`sql
+INSERT INTO users (email, profile)
+VALUES ('a@example.com', '{"city":"Pune"}')
+ON CONFLICT (email) DO UPDATE
+SET profile = EXCLUDED.profile
+RETURNING id;
+\`\`\`
+
+---
+
+## 5) Performance basics in Postgres
+
+- Use \`EXPLAIN (ANALYZE, BUFFERS)\` to see actual query work
+- Keep table statistics fresh (ANALYZE) so the planner makes good choices
+- Understand VACUUM and autovacuum (especially for high-write tables)
+`;
     }
-    if (lowerTitle.includes('index') || lowerTitle.includes('optimization')) {
+
+    if (lowerTitle === 'tables') {
       return `# ${title}
 
-Database indexes dramatically improve query performance by enabling fast data lookup without scanning entire tables. Indexes work like book indexes, pointing to data locations. Understanding indexing is crucial for building performant applications. Poorly indexed databases cause slow queries and scalability issues.
+Tables are the core building block of relational databases. Good table design makes your system easier to query, safer to evolve, and faster at scale. Bad table design creates bugs (inconsistent data), slow queries, and painful migrations.
 
-Indexes are created on frequently queried columns. B-tree indexes (default) efficiently support equality and range queries. Unique indexes enforce uniqueness constraints. Composite indexes cover multiple columns. Full-text indexes enable text search. Each database system offers specialized index types.
+---
 
-Indexes speed reads but slow writes (indexes must be updated on inserts/updates). Over-indexing wastes space and degrades write performance. Analyzing query patterns identifies beneficial indexes. EXPLAIN commands show whether queries use indexes. Covering indexes include all queried columns, avoiding table lookups.
+## 1) Keys and constraints (data correctness)
 
-Professional database design carefully balances read and write performance through strategic indexing. Monitoring slow queries, analyzing execution plans, and adding appropriate indexes optimizes performance. Understanding index types, when to use them, and their tradeoffs is essential for scalable applications handling significant data volumes.`;
+- Primary key: unique identifier for each row
+- Foreign key: enforces valid references between tables
+- Constraints you should use early:
+  - NOT NULL (required fields)
+  - UNIQUE (business rules like unique email)
+  - CHECK (validate ranges/values)
+
+---
+
+## 2) Relationship patterns
+
+- One-to-many: user -> posts
+- Many-to-many: posts <-> tags (requires a join table)
+- One-to-one: profile details kept in separate table (rare, but useful for optional/secure data)
+
+---
+
+## 3) Example schema (one-to-many + many-to-many)
+
+\`\`\`sql
+CREATE TABLE users (
+  id BIGINT PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE
+);
+
+CREATE TABLE posts (
+  id BIGINT PRIMARY KEY,
+  user_id BIGINT NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE tags (
+  id BIGINT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL UNIQUE
+);
+
+CREATE TABLE post_tags (
+  post_id BIGINT NOT NULL,
+  tag_id BIGINT NOT NULL,
+  PRIMARY KEY (post_id, tag_id),
+  FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+);
+\`\`\`
+
+---
+
+## 4) Schema design rules of thumb
+
+- Normalize first (avoid duplicate fields across tables), then denormalize only for performance.
+- Add indexes that match your query patterns (especially foreign keys and sorting columns).
+- Choose ON DELETE behavior intentionally (CASCADE vs RESTRICT vs SET NULL).
+- Prefer explicit constraint names in production schemas to simplify debugging and migrations.
+`;
     }
-    if (lowerTitle.includes('transaction')) {
+
+    if (lowerTitle === 'joins') {
       return `# ${title}
 
-Database transactions are sequences of operations that execute as single units, ensuring data consistency. Transactions provide ACID properties: Atomicity (all-or-nothing), Consistency (valid state), Isolation (concurrent transactions don't interfere), and Durability (committed data persists). Understanding transactions is crucial for maintaining data integrity.
+Joins are how relational databases combine related data across tables. Once you understand joins, you can model normalized schemas and still fetch exactly the data you need in a single query.
 
-Transactions begin with BEGIN or START TRANSACTION, execute operations, then COMMIT (save changes) or ROLLBACK (undo changes). All operations within transactions succeed together or fail together. Transactions prevent partial updates that could corrupt data. Banking transfers, order processing, and multi-step operations require transactions.
+---
 
-Isolation levels control how transactions interact: Read Uncommitted (dirty reads possible), Read Committed (prevents dirty reads), Repeatable Read (prevents non-repeatable reads), Serializable (full isolation). Higher isolation prevents more anomalies but reduces concurrency. Choosing appropriate isolation balances consistency and performance.
+## 1) Join types (what they return)
 
-Professional applications use transactions for operations affecting multiple tables or requiring atomicity. Transactions prevent race conditions, ensure data consistency, and enable recovery from failures. Understanding transaction scope, deadlocks, and isolation levels prevents data corruption and optimizes concurrent access to shared data.`;
+- INNER JOIN: only matching rows
+- LEFT JOIN: all rows from the left table, plus matches on the right (NULL when missing)
+- RIGHT JOIN: same as LEFT JOIN but reversed (less common)
+- FULL OUTER JOIN: all rows from both sides (not supported everywhere)
+
+---
+
+## 2) A realistic join example
+
+\`\`\`sql
+SELECT u.id, u.email, p.id AS post_id, p.title
+FROM users u
+JOIN posts p ON p.user_id = u.id
+WHERE u.email LIKE '%@example.com'
+ORDER BY p.created_at DESC;
+\`\`\`
+
+---
+
+## 3) LEFT JOIN for optional relations
+
+\`\`\`sql
+SELECT u.id, u.email, p.id AS post_id
+FROM users u
+LEFT JOIN posts p ON p.user_id = u.id;
+\`\`\`
+
+---
+
+## 4) Performance and common pitfalls
+
+- Index your foreign key columns (e.g., posts.user_id) for fast joins.
+- Avoid the “N+1 query” problem in application code: prefer joins or eager loading.
+- Be careful with filtering after a LEFT JOIN: conditions in WHERE can turn it into an INNER JOIN. When needed, move conditions into the JOIN ... ON clause.
+`;
     }
-    if (lowerTitle.includes('join')) {
+
+    if (lowerTitle === 'indexes') {
       return `# ${title}
 
-SQL joins combine rows from multiple tables based on related columns. Joins enable retrieving related data in single queries rather than multiple queries. Understanding joins is fundamental to working with relational databases. Proper join usage significantly affects query performance and result accuracy.
+Indexes are data structures that help databases find rows quickly without scanning entire tables. They are one of the biggest levers you have to make an app fast — but they come with tradeoffs.
 
-INNER JOIN returns only matching rows from both tables. LEFT JOIN returns all left table rows plus matches from right (null for non-matches). RIGHT JOIN reverses LEFT JOIN. FULL OUTER JOIN returns all rows from both tables. CROSS JOIN returns cartesian products. Self-joins join tables to themselves.
+---
 
-Joins use ON clauses specifying join conditions, typically foreign key relationships. Multiple joins combine data from many tables. Join order affects query performance - query planners optimize automatically but understanding helps with complex queries. Subqueries sometimes replace joins for specific patterns.
+## 1) What an index does
 
-Professional database queries extensively use joins to retrieve related data efficiently. Understanding join types, performance characteristics, and when to use each enables writing efficient queries. Complex business logic often requires multi-table joins. Properly designed schemas with appropriate foreign keys make joins natural and performant.`;
+- Without an index: the database may scan every row (slow on large tables)
+- With an index: the database can jump directly to matching rows
+
+Most relational databases use B-tree indexes by default, which are great for equality lookups and range queries.
+
+---
+
+## 2) Common index types you’ll use
+
+- Primary key index (usually created automatically)
+- Unique index (enforces uniqueness + speeds lookups)
+- Composite index (multiple columns)
+- Full-text index (text search, DB-specific)
+
+---
+
+## 3) Practical examples
+
+\`\`\`sql
+-- Fast lookup by email
+CREATE UNIQUE INDEX idx_users_email ON users (email);
+
+-- Efficient “get posts for user, newest first”
+CREATE INDEX idx_posts_user_created ON posts (user_id, created_at DESC);
+\`\`\`
+
+---
+
+## 4) How to design composite indexes
+
+Order matters. A composite index on (user_id, created_at) helps queries that filter by user_id and sort/range on created_at. It won’t help a query that only filters by created_at.
+
+---
+
+## 5) Tradeoffs
+
+- Faster reads, slower writes (every insert/update must update indexes)
+- More disk usage
+- Over-indexing can hurt performance and maintenance
+
+Use EXPLAIN to confirm an index is actually being used and measure improvements with real workloads.
+`;
     }
+
+    if (lowerTitle === 'transactions') {
+      return `# ${title}
+
+Transactions ensure multiple database operations succeed or fail as a single unit. They protect data correctness in real systems (payments, inventory, bookings) where partial updates would create corruption.
+
+---
+
+## 1) ACID in practice
+
+- Atomicity: all steps happen or none happen
+- Consistency: constraints remain valid
+- Isolation: concurrent transactions don’t break each other
+- Durability: committed data survives crashes
+
+---
+
+## 2) A classic example: money transfer
+
+\`\`\`sql
+BEGIN;
+
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+
+COMMIT;
+\`\`\`
+
+If anything fails, you ROLLBACK:
+
+\`\`\`sql
+BEGIN;
+-- steps...
+ROLLBACK;
+\`\`\`
+
+---
+
+## 3) Isolation levels and why you care
+
+Higher isolation prevents more anomalies (dirty reads, non-repeatable reads, phantom reads) but reduces concurrency. The right choice depends on your domain and throughput needs.
+
+---
+
+## 4) Production realities: deadlocks and retries
+
+Deadlocks can happen even in correctly designed systems. Robust applications:
+- Keep transactions short
+- Touch rows in a consistent order
+- Retry transactions that fail with transient errors (with a capped backoff)
+`;
+    }
+
+    if (lowerTitle === 'stored procedures') {
+      return `# ${title}
+
+Stored procedures (and functions) run inside the database. They can encapsulate reusable logic close to the data, reduce network round trips, and enforce rules consistently. They also introduce tradeoffs in portability and developer workflow.
+
+---
+
+## 1) Procedures vs application code
+
+Why teams use stored routines:
+- Complex multi-step data operations run close to the data
+- Centralized validation/business rules shared across services
+- Permission boundaries (grant access to a procedure instead of raw tables)
+
+Why teams avoid them:
+- Harder to version, test, and review compared to app code
+- Database-specific languages reduce portability
+- Debugging and deployments can be more complex
+
+---
+
+## 2) Example (Postgres function)
+
+\`\`\`sql
+CREATE OR REPLACE FUNCTION add_tag_to_post(p_post_id BIGINT, p_tag_id BIGINT)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO post_tags (post_id, tag_id)
+  VALUES (p_post_id, p_tag_id)
+  ON CONFLICT DO NOTHING;
+END;
+$$;
+\`\`\`
+
+Notes:
+- In Postgres, functions run inside the caller’s transaction.
+- For heavy automation, consider triggers carefully (they can surprise application developers).
+
+---
+
+## 3) When stored procedures are a good fit
+
+- Batch jobs that process lots of rows efficiently
+- Data maintenance routines (cleanup, archiving)
+- Strong invariants that must never be bypassed
+`;
+    }
+
+    if (lowerTitle === 'optimization') {
+      return `# ${title}
+
+Database optimization is about reducing work: fewer rows scanned, fewer round trips, less locking, and better use of memory/disk. The best optimizations come from measuring real queries, not guessing.
+
+---
+
+## 1) The performance toolbox
+
+- EXPLAIN / EXPLAIN ANALYZE: understand query plans
+- Indexes: speed up lookups, joins, and sorts
+- Schema design: correct normalization + intentional denormalization
+- Query shape: filter early, select only needed columns, avoid unnecessary joins
+
+---
+
+## 2) Practical improvements that matter
+
+- Avoid SELECT * in hot paths; return only required columns
+- Replace OFFSET pagination with keyset pagination for large datasets
+- Batch inserts/updates instead of looping one row at a time
+- Use connection pooling; avoid opening a new connection per request
+
+---
+
+## 3) Common slow-query causes
+
+- Missing indexes for WHERE / JOIN columns
+- Low-selectivity indexes (index exists but is not helpful)
+- Functions on indexed columns (can prevent index usage without expression indexes)
+- Sorting large result sets without a matching index
+
+---
+
+## 4) Monitoring mindset
+
+- Track p95 latency for your slowest endpoints
+- Log slow queries with parameters (safely)
+- Add indexes only after confirming the target query benefits
+`;
+    }
+
+    if (lowerTitle === 'mongodb intro') {
+      return `# ${title}
+
+MongoDB is a document database that stores data as JSON-like documents. It’s great when your data naturally fits a nested structure, your schema evolves frequently, or you want to scale reads/writes horizontally. The key skill is designing documents for your query patterns.
+
+---
+
+## 1) Documents and collections
+
+- A document is a JSON object (with an _id field).
+- A collection is a group of documents (similar to a table).
+- Documents can be nested (objects/arrays), which can reduce joins by embedding data.
+
+---
+
+## 2) Embedding vs referencing
+
+- Embed when:
+  - data is accessed together
+  - arrays are reasonably bounded (not unbounded growth)
+- Reference when:
+  - data is shared by many documents
+  - subdocuments can grow large or are updated independently
+
+---
+
+## 3) Basic CRUD examples
+
+\`\`\`js
+// Insert
+db.users.insertOne({ email: 'a@example.com', profile: { city: 'Pune' } });
+
+// Query
+db.users.find({ 'profile.city': 'Pune' }, { email: 1 });
+
+// Update
+db.users.updateOne({ email: 'a@example.com' }, { $set: { active: true } });
+\`\`\`
+
+---
+
+## 4) Production basics
+
+- Create indexes for your most common filters and sorts
+- Run MongoDB as a replica set (enables high availability and transactions)
+- Watch document growth patterns and avoid “unbounded arrays”
+`;
+    }
+
+    if (lowerTitle === 'collections') {
+      return `# ${title}
+
+Collections are where MongoDB stores documents. Unlike SQL tables, collections don’t require a strict schema by default — but real production systems still need consistent structure and validation.
+
+---
+
+## 1) Designing a collection
+
+Start from your queries:
+- What fields do you filter by?
+- What fields do you sort by?
+- Do you need to paginate?
+- Do you need to update parts of the document frequently?
+
+Then choose:
+- One collection per entity (users, orders, products)
+- Or “aggregate” collections when a document naturally owns nested data (e.g., an order with line items)
+
+---
+
+## 2) Schema validation (recommended)
+
+MongoDB can enforce validation rules to prevent bad data:
+- required fields
+- field types
+- value constraints
+
+---
+
+## 3) Practical patterns
+
+- Use a consistent _id strategy (ObjectId is the default; sometimes you store application IDs too).
+- Avoid large, ever-growing arrays inside a single document.
+- Add indexes that match your top queries (email lookup, status filtering, createdAt sorting).
+`;
+    }
+
+    if (lowerTitle === 'aggregation') {
+      return `# ${title}
+
+Aggregation is MongoDB’s framework for building data pipelines: filter, transform, group, and join-like operations across documents. Aggregation pipelines are how you build analytics queries, reports, and complex transformations without pulling all data into application code.
+
+---
+
+## 1) Pipeline mindset
+
+A pipeline is a list of stages, executed in order:
+- $match: filter documents (like WHERE)
+- $project: shape output fields
+- $group: aggregate (COUNT, SUM, AVG)
+- $sort, $limit, $skip: ordering and pagination
+- $lookup: join-like stage across collections
+- $unwind: flatten arrays into multiple rows
+
+---
+
+## 2) Example: revenue per user
+
+\`\`\`js
+db.orders.aggregate([
+  { $match: { status: 'PAID' } },
+  { $group: { _id: '$userId', revenue: { $sum: '$total' } } },
+  { $sort: { revenue: -1 } },
+  { $limit: 10 }
+]);
+\`\`\`
+
+---
+
+## 3) Performance rules of thumb
+
+- Put $match early to reduce the number of documents flowing through later stages.
+- Use indexes to support your $match and sort stages.
+- Be careful with $unwind on large arrays (it multiplies documents).
+- For large pipelines, consider allowDiskUse and monitor memory usage.
+`;
+    }
+
+    if (lowerTitle === 'indexing') {
+      return `# ${title}
+
+Indexing in MongoDB is critical because queries without indexes can become collection scans. Mongo indexes support many query patterns, but you need to design them around how your application filters and sorts data.
+
+---
+
+## 1) Common MongoDB index types
+
+- Single-field indexes (email)
+- Compound indexes (status + createdAt)
+- Unique indexes (enforce uniqueness)
+- TTL indexes (automatic expiration for sessions, tokens)
+- Text indexes (search)
+- Geospatial indexes (location queries)
+
+---
+
+## 2) Creating indexes
+
+\`\`\`js
+db.users.createIndex({ email: 1 }, { unique: true });
+db.orders.createIndex({ status: 1, createdAt: -1 });
+\`\`\`
+
+---
+
+## 3) How to think about compound indexes
+
+Mongo can use a compound index efficiently when the query uses a prefix of the index fields. Align index order with your most common query patterns:
+- Equality filters first
+- Then sort fields
+- Then range filters
+
+---
+
+## 4) Tradeoffs
+
+- Faster reads, slower writes
+- Indexes consume RAM and disk
+- Too many indexes increase write latency and maintenance cost
+`;
+    }
+
+    if (lowerTitle === 'mongodb transactions') {
+      return `# ${title}
+
+MongoDB supports multi-document transactions, but they are heavier than single-document operations. The MongoDB model encourages designing data so most updates are single-document (which are atomic by default). Use transactions when you truly need cross-document atomicity.
+
+---
+
+## 1) Requirements and constraints
+
+- Transactions require a replica set (including single-node replica sets in development).
+- Longer transactions increase lock pressure and can reduce throughput.
+- Expect transient errors; transaction code should retry safely.
+
+---
+
+## 2) A typical transaction workflow (Node.js driver style)
+
+\`\`\`js
+const session = client.startSession();
+
+await session.withTransaction(async () => {
+  await accounts.updateOne({ _id: fromId }, { $inc: { balance: -100 } }, { session });
+  await accounts.updateOne({ _id: toId }, { $inc: { balance: 100 } }, { session });
+});
+\`\`\`
+
+---
+
+## 3) Best practices
+
+- Keep transactions short and focused
+- Prefer idempotent operations and consistent write ordering
+- Use appropriate write concern and read concern based on correctness needs
+`;
+    }
+
+    if (lowerTitle === 'prisma') {
+      return `# ${title}
+
+Prisma is a modern ORM for Node.js and TypeScript that generates a type-safe client from a schema file. It shines in product teams because it improves developer speed while still allowing serious database work (migrations, constraints, relations, transactions).
+
+---
+
+## 1) Core Prisma workflow
+
+- Define models in schema.prisma
+- Run migrations to apply schema changes to the database
+- Generate Prisma Client for type-safe queries
+
+---
+
+## 2) Modeling relations and constraints
+
+\`\`\`prisma
+model User {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  posts Post[]
+}
+
+model Post {
+  id     Int    @id @default(autoincrement())
+  title  String
+  userId Int
+  user   User   @relation(fields: [userId], references: [id])
+}
+\`\`\`
+
+---
+
+## 3) Query patterns you’ll use
+
+\`\`\`ts
+// Read with filtering and selected fields
+const users = await prisma.user.findMany({
+  where: { email: { contains: '@example.com' } },
+  select: { id: true, email: true }
+});
+\`\`\`
+
+---
+
+## 4) Transactions and performance
+
+- Use prisma.$transaction for atomic multi-step operations.
+- Avoid fetching huge objects by default; prefer select and pagination.
+- When needed, Prisma supports raw queries for advanced SQL and performance tuning.
+`;
+    }
+
+    if (lowerTitle === 'drizzle') {
+      return `# ${title}
+
+Drizzle is a type-safe ORM/query builder that keeps you close to SQL while still providing strong TypeScript types. Compared to Prisma, Drizzle is often more explicit: you define schema and write queries in a way that feels like building SQL safely.
+
+---
+
+## 1) Why teams choose Drizzle
+
+- Type-safe queries without hiding SQL concepts
+- Lightweight and composable
+- Great fit when you want full control over query shape
+
+---
+
+## 2) Schema-first in TypeScript (example style)
+
+\`\`\`ts
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  email: text('email').notNull().unique(),
+  createdAt: timestamp('created_at').notNull()
+});
+\`\`\`
+
+---
+
+## 3) Querying
+
+\`\`\`ts
+const result = await db.select().from(users).where(eq(users.email, 'a@example.com'));
+\`\`\`
+
+---
+
+## 4) Practical guidance
+
+- Drizzle rewards developers who understand SQL fundamentals (joins, indexes, transactions).
+- Use migrations (drizzle-kit) as part of your CI/CD workflow to keep schema changes controlled.
+`;
+    }
+
+    if (lowerTitle === 'sequelize') {
+      return `# ${title}
+
+Sequelize is a mature ORM for Node.js with broad SQL database support (Postgres, MySQL, MariaDB, SQLite, MSSQL). It provides models, associations, migrations, and query APIs. Many legacy and mid-sized Node codebases use Sequelize successfully.
+
+---
+
+## 1) Key concepts
+
+- Models represent tables
+- Instances represent rows
+- Associations model relationships (hasMany, belongsTo, belongsToMany)
+
+---
+
+## 2) Example (model definition style)
+
+\`\`\`js
+const User = sequelize.define('User', {
+  email: { type: DataTypes.STRING, allowNull: false, unique: true },
+  name: { type: DataTypes.STRING }
+});
+\`\`\`
+
+---
+
+## 3) Common usage patterns
+
+- Use migrations (sequelize-cli) to evolve schema safely
+- Use include carefully to avoid expensive joins and large payloads
+- Prefer explicit attributes selection to avoid selecting entire rows
+
+---
+
+## 4) Tradeoffs
+
+- Strong ecosystem and features
+- TypeScript experience can be more complex than newer tools
+- Some patterns feel “magical” compared to SQL-first approaches
+`;
+    }
+
+    if (lowerTitle === 'typeorm') {
+      return `# ${title}
+
+TypeORM is an ORM for Node.js that uses entity classes (often with decorators) to map TypeScript/JavaScript objects to relational tables. It offers repositories, query builder, migrations, and relation mapping. It can work well, but performance and correctness require understanding the generated SQL.
+
+---
+
+## 1) Core building blocks
+
+- Entities (tables)
+- Repositories (data access)
+- Migrations (schema changes)
+- QueryBuilder (complex queries without raw SQL)
+
+---
+
+## 2) Example entity (simplified)
+
+\`\`\`ts
+@Entity()
+export class User {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ unique: true })
+  email: string;
+}
+\`\`\`
+
+---
+
+## 3) Professional guidance
+
+- Avoid enabling automatic schema sync in production; use migrations.
+- Use QueryBuilder for complex joins and filters to control SQL shape.
+- Monitor generated queries; ORMs can create N+1 issues if used carelessly.
+`;
+    }
+
     return null; // Return null if no specific content found for Databases
   }
 
   // Backend Architecture Topics
   if (category === 'Backend Architecture') {
-    if (lowerTitle.includes('mvc')) {
+    if (lowerTitle === 'mvc') {
       return `# ${title}
 
-MVC (Model-View-Controller) is a design pattern separating applications into three components: Models (data and business logic), Views (presentation), and Controllers (handle requests, coordinate models and views). MVC remains popular for organizing web applications, though modern frameworks adapt the pattern.
+MVC (Model–View–Controller) is a way to organize code by separating **request handling** from **business logic** and **presentation**. In modern API backends, you often keep the “spirit” of MVC, even if the “View” is just JSON.
 
-Models represent data and business logic, handling database operations and validation. Controllers receive requests, process inputs, call appropriate models, and return responses. Views render HTML or JSON for clients. Clear separation enables independent development and testing of each layer.
+---
 
-MVC promotes organized, maintainable code by separating concerns. However, strict MVC can be limiting - real applications often need additional layers like services or repositories. Many frameworks loosely follow MVC, adapting to modern patterns like API-first development where views are frontend applications.
+## 1) What each layer owns
 
-Professional backend development uses MVC-influenced architectures for organization. Understanding separation of concerns, layer responsibilities, and communication patterns enables building maintainable applications. While pure MVC is less common in APIs, the principles of separating data, logic, and presentation remain valuable.`;
+- **Controller**: HTTP details (params, headers, status codes), calls the service/use-case.
+- **Model**: data representation + invariants (in many Node apps this becomes “data access + validation”).
+- **View**: rendering (HTML) or response formatting (JSON).
+
+In practice, many teams extend MVC into a layered architecture:
+- Controller (HTTP) -> Service/Use Case (business rules) -> Repository/ORM (data)
+
+---
+
+## 2) A practical folder structure (Express/Node)
+
+\`\`\`text
+src/
+  routes/
+  controllers/
+  services/
+  repositories/
+  db/
+  utils/
+\`\`\`
+
+This keeps controllers thin and pushes domain rules into services.
+
+---
+
+## 3) Common MVC mistakes
+
+- **Fat controllers**: controllers doing validation + business rules + DB queries.
+- **Anemic services**: service layer just forwarding calls to ORM without real logic.
+- **Leaky HTTP concerns**: domain code that depends on req/res objects.
+
+---
+
+## 4) What to practice
+
+- Build a small Users + Posts API.
+- Keep controllers focused on HTTP only.
+- Put business rules in services (e.g., unique email, max post length).
+- Unit-test services without running an HTTP server.
+`;
     }
-    if (lowerTitle.includes('microservices') || lowerTitle.includes('monolith')) {
+
+    if (lowerTitle === 'clean architecture') {
       return `# ${title}
 
-Monolithic architectures deploy applications as single units, while microservices split applications into small, independent services communicating via APIs. Each approach has tradeoffs. Understanding when to use each is crucial for architectural decisions. Many successful applications start monolithic and migrate to microservices as needed.
+Clean Architecture organizes software around **business logic first**, keeping frameworks and infrastructure details at the edges. The core idea is the **Dependency Rule**: dependencies point inward toward your domain/use-cases, not outward toward libraries.
 
-Monoliths are simpler to develop, deploy, and debug. All code shares the same database and runs in one process. Monoliths suit small teams, early-stage products, and applications with tight coupling. Downsides include scaling entire application for one busy component and deployment coupling all code.
+---
 
-Microservices enable independent scaling, deployment, and technology choices per service. Teams work independently on separate services. Microservices suit large organizations and complex domains. However, microservices increase operational complexity, network latency, and distributed system challenges like consistency and debugging.
+## 1) Layers (typical interpretation)
 
-Professional architectural decisions consider team size, domain complexity, and scalability needs. Starting with well-organized monoliths and extracting microservices as needed balances simplicity and scalability. Understanding tradeoffs, communication patterns, and operational overhead guides appropriate architecture choices for specific contexts.`;
+- **Entities**: core domain objects and invariants
+- **Use cases**: application-specific business flows (register user, place order)
+- **Interface adapters**: controllers, presenters, ORM adapters
+- **Frameworks & drivers**: Express, Prisma, databases, message brokers
+
+---
+
+## 2) Why teams adopt it
+
+- Test business logic without databases or web servers
+- Swap infrastructure (DB, queue, framework) with minimal changes
+- Reduce tight coupling that slows teams over time
+
+---
+
+## 3) A practical structure (TypeScript example)
+
+\`\`\`text
+src/
+  domain/
+  usecases/
+  ports/
+  adapters/
+  http/
+  db/
+\`\`\`
+
+---
+
+## 4) Real-world warning
+
+Clean Architecture can be too heavy for simple CRUD. A good compromise is:
+- keep controllers thin,
+- keep business rules in services/use-cases,
+- and hide data access behind an interface when it adds real value.
+`;
     }
-    if (lowerTitle.includes('repository pattern')) {
+
+    if (lowerTitle === 'hexagonal') {
       return `# ${title}
 
-The Repository Pattern abstracts data access logic into repository classes, separating business logic from database operations. Repositories provide collection-like interfaces for accessing domain objects. This pattern enables changing datastores without affecting business logic and improves testability through mocking.
+Hexagonal Architecture (also called **Ports and Adapters**) structures a system so that your core business logic sits in the center, and external systems (HTTP, DB, queues) connect through interfaces.
 
-Repositories encapsulate queries, inserts, updates, and deletes for specific entity types. Business logic calls repository methods like userRepository.findById() without knowing whether data comes from SQL, MongoDB, or APIs. Repositories can combine multiple data sources or implement caching transparently.
+---
 
-Repository patterns work well with dependency injection, enabling replacing implementations for testing or different environments. Generic repositories provide common operations, while specific repositories add specialized queries. However, repositories can become anemic when they simply wrap ORMs without adding value.
+## 1) The core concept
 
-Professional applications use repositories to decouple business logic from data access. Understanding when repositories add value vs adding unnecessary abstraction is important. Repositories shine when data access is complex, multiple data sources exist, or testing requires mocking data. ORMs like Prisma sometimes make repositories less necessary.`;
+- **Ports**: interfaces your core exposes (or requires).
+- **Adapters**: implementations of those ports for specific technologies.
+
+Two common kinds:
+- **Inbound adapters** (HTTP controllers, CLI commands) call into use-cases.
+- **Outbound adapters** (Prisma, REST clients, message brokers) are called by use-cases.
+
+---
+
+## 2) Example: repository port + Prisma adapter
+
+\`\`\`ts
+// ports/UserRepository.ts
+export interface UserRepository {
+  findByEmail(email: string): Promise<{ id: number; email: string } | null>;
+  create(data: { email: string }): Promise<{ id: number; email: string }>;
+}
+\`\`\`
+
+\`\`\`ts
+// usecases/registerUser.ts
+import { UserRepository } from '../ports/UserRepository';
+
+export async function registerUser(repo: UserRepository, email: string) {
+  const existing = await repo.findByEmail(email);
+  if (existing) throw new Error('Email already exists');
+  return repo.create({ email });
+}
+\`\`\`
+
+\`\`\`ts
+// adapters/PrismaUserRepository.ts (illustrative)
+export class PrismaUserRepository {
+  constructor(private prisma: any) {}
+
+  findByEmail(email: string) {
+    return this.prisma.user.findUnique({ where: { email }, select: { id: true, email: true } });
+  }
+
+  create(data: { email: string }) {
+    return this.prisma.user.create({ data, select: { id: true, email: true } });
+  }
+}
+\`\`\`
+
+---
+
+## 3) Why it matters
+
+- You can test use-cases with an in-memory repository.
+- You can swap Prisma for another tool without rewriting business logic.
+
+---
+
+## 4) When it’s too much
+
+If your app is small, ports/adapters can add ceremony. Use it when you have:
+- multiple external integrations,
+- complex business rules,
+- or long-term maintainability needs.
+`;
     }
-    if (lowerTitle.includes('service layer')) {
+
+    if (lowerTitle === 'repository pattern') {
       return `# ${title}
 
-Service layers contain business logic, coordinating between controllers and data access. Services encapsulate complex operations, validation, and business rules. Service layers enable reusing logic across different controllers or consumers. Understanding service layers is essential for organizing backend applications.
+The Repository Pattern hides data-access details behind a small interface. The goal is to make business logic depend on **what data you need**, not **how the database fetches it**.
 
-Services are typically classes with methods representing business operations. Controllers call services to perform operations, keeping controllers thin. Services coordinate multiple repositories, implement transactions, and enforce business rules. Services should be independent of HTTP concerns, enabling reuse in queues, CLI, or other contexts.
+---
 
-Service layer patterns enable testing business logic independently of web framework or database. Services can call other services, creating hierarchical operations. However, excessive service layers can lead to over-engineering. Balance service abstraction with practical simplicity.
+## 1) When repositories add value
 
-Professional backend applications separate controllers (HTTP handling), services (business logic), and repositories (data access) for maintainability and testability. Understanding these layers, their responsibilities, and communication patterns enables building organized, scalable backend applications. Service layers become essential as applications grow in complexity.`;
+- Complex queries and persistence logic
+- Multiple data sources (DB + cache + third-party)
+- Testing business logic with fakes/mocks
+- Enforcing invariants (e.g., always load related data the same way)
+
+---
+
+## 2) When repositories don’t add value
+
+- A “generic repository” that only wraps ORM methods (adds little abstraction)
+- Simple CRUD apps where Prisma already provides good query ergonomics
+
+---
+
+## 3) A small, useful repository interface
+
+\`\`\`ts
+export interface PostRepository {
+  findById(id: number): Promise<{ id: number; title: string; userId: number } | null>;
+  findByUserId(userId: number): Promise<Array<{ id: number; title: string }>>;
+  create(data: { title: string; userId: number }): Promise<{ id: number }>;
+}
+\`\`\`
+
+Rule of thumb: keep repository methods aligned with real use-cases, not table operations.
+`;
     }
-    if (lowerTitle.includes('clean architecture')) {
+
+    if (lowerTitle === 'service layer') {
       return `# ${title}
 
-Clean Architecture, proposed by Robert Martin, organizes code around business logic independent of frameworks, databases, or UI. Core principle is dependency inversion - dependencies point inward toward business logic, not outward to external concerns. Clean Architecture maximizes maintainability and testability.
+A Service Layer holds **business operations** that coordinate multiple steps: validation, database writes, side effects, and transactions. It keeps controllers thin and prevents duplicating business rules across endpoints.
 
-Clean Architecture layers include Entities (business objects), Use Cases (application logic), Interface Adapters (controllers, presenters), and Frameworks (web, database). Inner layers know nothing about outer layers. Outer layers depend on inner layers through interfaces. This prevents business logic depending on implementation details.
+---
 
-Benefits include easier testing (mock external dependencies), framework flexibility (swap databases or web frameworks), and postponed infrastructure decisions. Downsides include increased complexity and abstraction. Clean Architecture suits complex domains but may be overkill for simple CRUD applications.
+## 1) What belongs in a service
 
-Professional teams adopt Clean Architecture principles selectively based on domain complexity. Understanding dependency inversion, boundaries, and layered architecture guides building maintainable systems. While pure Clean Architecture is rare, its principles inform better architectural decisions and more testable, flexible code.`;
+- Business rules (permissions, invariants, domain constraints)
+- Orchestration (call multiple repositories)
+- Transactions (all-or-nothing behavior)
+- Side effects (enqueue jobs, emit events) — often via ports
+
+---
+
+## 2) What does NOT belong in a service
+
+- HTTP concerns (req/res)
+- Database-specific query details if you’re using repositories
+- Formatting responses for a specific API contract
+
+---
+
+## 3) Example: service method with a transaction (concept)
+
+\`\`\`ts
+export async function placeOrder(prisma: any, input: { userId: number; items: Array<{ sku: string; qty: number }> }) {
+  return prisma.$transaction(async (tx: any) => {
+    // 1) validate inventory
+    // 2) create order + line items
+    // 3) decrement inventory
+    // 4) emit event / schedule email
+    return tx.order.create({ data: { userId: input.userId } });
+  });
+}
+\`\`\`
+
+---
+
+## 4) Testing guidance
+
+- Unit-test services with mocked repositories.
+- Add integration tests for transaction-heavy paths.
+`;
     }
-    if (lowerTitle.includes('event driven')) {
+
+    if (lowerTitle === 'monolith vs microservices') {
       return `# ${title}
 
-Event-Driven Architecture decouples components by communicating through events rather than direct calls. Components publish events when actions occur, and interested components subscribe to events. Event-driven systems enable scalability, flexibility, and loose coupling. Understanding event-driven patterns is valuable for distributed systems.
+Monoliths and microservices are tradeoffs between **simplicity** and **organizational scalability**. Most teams should start with a well-structured monolith (often a “modular monolith”) and only adopt microservices when the benefits clearly outweigh the overhead.
 
-Event-driven systems use message buses or event streams (Kafka, RabbitMQ, AWS EventBridge). Producers emit events, consumers process them asynchronously. Events represent facts (UserRegistered, OrderPlaced). Multiple consumers can process same events for different purposes. Events enable building systems that react to changes.
+---
 
-Benefits include loose coupling, independent scaling, and temporal decoupling (consumers process events later). Event sourcing stores events as source of truth, enabling time travel and audit logs. However, event-driven systems increase complexity, debugging difficulty, and eventual consistency challenges.
+## 1) Monolith (pros/cons)
 
-Professional applications use events for integration between services, handling long-running processes, and building reactive systems. Understanding when events add value vs adding complexity is important. Event-driven architectures suit domains with complex workflows, many integrations, or requirements for audit trails and flexibility.`;
+Pros:
+- Simple to develop, test, and deploy
+- Easier debugging (one codebase, one runtime)
+- Strong consistency (single database, easy transactions)
+
+Cons:
+- Harder to scale teams and deploy independently
+- Whole app can become slow to build/test as it grows
+
+---
+
+## 2) Microservices (pros/cons)
+
+Pros:
+- Independent deploys and scaling
+- Clear ownership boundaries for teams
+- Different tech stacks per service (when justified)
+
+Cons:
+- Distributed systems problems: latency, retries, timeouts
+- Harder consistency and transactions
+- Observability becomes mandatory (tracing, logs, metrics)
+- More DevOps complexity (deployments, networking, security)
+
+---
+
+## 3) The "modular monolith" sweet spot
+
+Many successful systems are:
+- one deployable unit,
+- but internally structured into modules with clear boundaries,
+- and strict dependency rules between modules.
+
+This keeps the option to extract a service later without premature complexity.
+`;
     }
-    if (lowerTitle.includes('cqrs')) {
+
+    if (lowerTitle === 'event driven') {
       return `# ${title}
 
-CQRS (Command Query Responsibility Segregation) separates read and write operations into different models. Commands modify state, queries retrieve data. Separating these concerns enables optimizing each independently. CQRS is powerful for complex domains but adds complexity inappropriate for simple applications.
+Event-Driven Architecture (EDA) connects components through **events** instead of direct calls. An event represents something that already happened (a fact), and consumers react asynchronously. This reduces coupling and supports scalable, flexible workflows.
 
-Write models (commands) enforce business rules, validate inputs, and update data. Read models (queries) provide efficient data retrieval, often denormalized for fast reads. Separate databases can serve reads and writes, scaled independently. Event sourcing commonly pairs with CQRS.
+---
 
-Benefits include independent optimization of reads and writes, simplified business logic, and better scalability. Challenges include complexity, eventual consistency between read and write models, and increased infrastructure. CQRS suits complex domains with different read and write patterns but is overkill for CRUD applications.
+## 1) Events vs commands
 
-Professional systems use CQRS selectively for parts requiring independent read/write scaling or complex business logic. Understanding when CQRS solves real problems vs adding unnecessary complexity is crucial. CQRS combined with event sourcing enables powerful audit capabilities but requires significant investment in infrastructure and learning.`;
+- **Command**: "Do this" (direct intention). Usually one handler.
+- **Event**: "This happened" (a fact). Potentially many consumers.
+
+---
+
+## 2) Example event payload
+
+\`\`\`json
+{
+  "eventId": "c5f8d8e1-1f4d-4b62-9b7c-3f2e2c6a4a12",
+  "type": "OrderPlaced",
+  "occurredAt": "2026-04-13T10:00:00.000Z",
+  "data": {
+    "orderId": 123,
+    "userId": 45,
+    "total": 999
+  }
+}
+\`\`\`
+
+---
+
+## 3) Reliability fundamentals (production-grade)
+
+- **At-least-once delivery** is common → consumers must be **idempotent**.
+- Use **retries** with backoff for transient failures.
+- Use a **dead-letter queue (DLQ)** for poisoned messages.
+- Track **consumer offsets** and throughput.
+
+---
+
+## 4) The outbox pattern (avoids lost events)
+
+If you write to a DB and publish an event, you can lose consistency. The outbox pattern stores events in the same DB transaction as the write, then publishes asynchronously.
+
+---
+
+## 5) Tradeoffs
+
+- Great decoupling and scalability
+- Harder debugging (async, eventual consistency)
+- Requires observability (tracing, structured logs)
+`;
     }
+
+    if (lowerTitle === 'cqrs') {
+      return `# ${title}
+
+CQRS (Command Query Responsibility Segregation) splits the system into:
+- **Commands**: write operations (change state)
+- **Queries**: read operations (return data)
+
+This allows optimizing read and write paths independently, especially when reads and writes have very different performance and data-shape needs.
+
+---
+
+## 1) A simple CQRS mindset (without over-engineering)
+
+- Writes enforce business rules and use normalized tables.
+- Reads return view models optimized for the UI (often denormalized).
+
+You don’t need separate databases to apply CQRS principles.
+
+---
+
+## 2) When CQRS is a good fit
+
+- Very heavy read traffic with complex UI projections
+- Complex domains where write rules are strict and benefit from a dedicated model
+- Reporting/analytics dashboards
+
+---
+
+## 3) Common costs
+
+- More code paths and more mental overhead
+- Data duplication on the read side
+- Eventual consistency (if read model updates asynchronously)
+
+---
+
+## 4) Practical tip
+
+Start small:
+- keep controllers thin,
+- keep commands and queries as separate functions/classes,
+- introduce projections only when you can prove the need.
+`;
+    }
+
+    if (lowerTitle === 'api versioning') {
+      return `# ${title}
+
+API versioning is about evolving your API without breaking existing clients. Good versioning is not only about URL paths — it’s also a product decision: how long old versions live, how deprecations work, and how changes are communicated.
+
+---
+
+## 1) What counts as a breaking change
+
+- Removing or renaming fields
+- Changing field meaning or types
+- Tightening validation rules (previously valid input becomes invalid)
+- Changing auth/permissions behavior
+- Changing pagination semantics or default sorting
+
+Additive changes (usually safe):
+- Adding optional fields
+- Adding new endpoints
+
+---
+
+## 2) Common versioning strategies
+
+1) **URL path**
+- \`/api/v1/users\`
+- Simple and obvious; easy routing.
+
+2) **Header-based**
+- \`Accept: application/vnd.myapp.v1+json\`
+- Keeps URLs stable, but harder to test manually.
+
+3) **Query parameter**
+- \`/api/users?apiVersion=1\`
+- Usually discouraged for public APIs but can be workable internally.
+
+---
+
+## 3) Deprecation policy (the part people forget)
+
+- Announce deprecations with a timeline
+- Add response headers (e.g., \`Deprecation\`, \`Sunset\`) when appropriate
+- Maintain docs per version
+- Provide migration guides (before you turn anything off)
+
+---
+
+## 4) Practical approach for most teams
+
+- Keep v1 stable for as long as possible.
+- Prefer additive changes.
+- If you must break clients, create v2 and run both versions during a transition window.
+`;
+    }
+
     return null; // Return null if no specific content found for Backend Architecture
   }
 
   // DevOps Topics
   if (category === 'DevOps') {
-    if (lowerTitle.includes('docker')) {
+    if (lowerTitle === 'linux basics') {
       return `# ${title}
 
-Docker is a containerization platform packaging applications with their dependencies into portable containers. Containers run consistently across development, testing, and production environments, solving "works on my machine" problems. Understanding Docker is essential for modern application deployment and development workflows.
+Linux is the default operating system for most servers, containers, and cloud workloads. Knowing Linux basics helps you debug production issues, work with Docker/Kubernetes, and automate deployments.
 
-Docker images are templates containing application code, runtime, libraries, and dependencies. Images build from Dockerfiles specifying layered instructions. Containers are running instances of images, isolated from host systems and other containers. Docker Hub hosts public images for popular software.
+---
 
-Docker benefits include consistent environments, simplified deployment, efficient resource usage, and isolating applications. Developers run production-like environments locally. CI/CD pipelines build and test in containers. Containers start quickly and use fewer resources than virtual machines.
+## 1) Files, paths, and permissions
 
-Professional development extensively uses Docker for local development, testing, and production deployment. Understanding Dockerfile best practices, multi-stage builds, volume management, and networking enables leveraging Docker effectively. Docker is fundamental to modern DevOps practices and cloud-native development.`;
+- Paths are case-sensitive.
+- Permissions are user/group/other with read/write/execute.
+- Ownership and permissions:
+
+\`\`\`bash
+ls -la
+chmod 644 file.txt
+chmod 755 script.sh
+chown user:group file.txt
+\`\`\`
+
+---
+
+## 2) Processes and services
+
+- Inspect processes and resource usage:
+
+\`\`\`bash
+ps aux
+top
+kill -9 <pid>
+\`\`\`
+
+- System services (systemd):
+
+\`\`\`bash
+systemctl status nginx
+systemctl restart nginx
+journalctl -u nginx -n 100
+\`\`\`
+
+---
+
+## 3) Logs and troubleshooting
+
+\`\`\`bash
+tail -n 200 /var/log/syslog
+tail -f /var/log/nginx/error.log
+grep -R "ERROR" /var/log
+\`\`\`
+
+---
+
+## 4) Networking basics
+
+\`\`\`bash
+curl -i http://localhost:3000
+ss -lntp
+\`\`\`
+
+---
+
+## What to practice
+
+- SSH into a server, inspect logs, and restart a service.
+- Find which process owns a port.
+- Write a small bash script that backs up a directory.
+`;
     }
-    if (lowerTitle.includes('kubernetes')) {
+
+    if (lowerTitle === 'docker') {
       return `# ${title}
 
-Kubernetes (K8s) is a container orchestration platform automating deployment, scaling, and management of containerized applications. Kubernetes handles container scheduling, load balancing, self-healing, and rolling updates. Understanding Kubernetes is increasingly important as organizations adopt cloud-native architectures.
+Docker packages an application and its dependencies into an image, then runs that image as an isolated container. This makes environments consistent across developer machines, CI, and production.
 
-Kubernetes core concepts include Pods (smallest deployable units), Deployments (manage Pod replicas), Services (expose Pods network), and Namespaces (multi-tenancy). Kubernetes schedules Pods across cluster nodes, restarts failed containers, scales Pods based on load, and performs zero-downtime deployments.
+---
 
-Kubernetes configuration uses YAML files declaring desired state. Kubernetes continuously reconciles actual state with desired state. ConfigMaps and Secrets manage configuration and sensitive data. Ingress controllers handle HTTP routing. Persistent Volumes provide storage for stateful applications.
+## 1) Core concepts
 
-Professional organizations use Kubernetes for managing microservices, ensuring availability, and enabling scalable infrastructure. Kubernetes is complex - managed services like EKS, GKE, and AKS simplify operations. Understanding Kubernetes architecture, resources, and deployment patterns enables building cloud-native applications at scale.`;
+- **Image**: immutable template (built from a Dockerfile)
+- **Container**: running instance of an image
+- **Registry**: where images are stored (Docker Hub, GHCR)
+- **Volume**: persistent storage outside the container filesystem
+- **Network**: container-to-container communication
+
+---
+
+## 2) A minimal Node.js Dockerfile
+
+\`\`\`dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+EXPOSE 3000
+CMD ["node", "index.js"]
+\`\`\`
+
+---
+
+## 3) Useful commands
+
+\`\`\`bash
+docker build -t my-app .
+docker run --rm -p 3000:3000 my-app
+docker ps
+docker logs <container>
+docker exec -it <container> sh
+\`\`\`
+
+---
+
+## 4) Best practices
+
+- Use a \`.dockerignore\` to speed builds.
+- Keep images small (alpine, multi-stage builds when needed).
+- Avoid baking secrets into images.
+- Pin major versions (don’t rely on \`latest\` in production).
+`;
     }
-    if (lowerTitle.includes('ci cd') || lowerTitle.includes('ci/cd')) {
+
+    if (lowerTitle === 'docker compose') {
       return `# ${title}
 
-CI/CD (Continuous Integration/Continuous Deployment) automates software delivery from code commit to production deployment. CI frequently merges code changes, running automated tests to catch issues early. CD automatically deploys passing builds to production. CI/CD enables fast, reliable software delivery at scale.
+Docker Compose runs multi-container applications locally using a single YAML file. It’s ideal for development stacks that need an API + database + cache.
 
-CI involves committing code multiple times daily, triggering automated builds and tests. Failed builds stop the pipeline, preventing broken code from reaching production. Unit tests, integration tests, and linting run automatically. Fast feedback loops catch bugs when context is fresh.
+---
 
-CD extends CI by automatically deploying to staging and production environments. CD requires comprehensive testing, feature flags, and monitoring. Deployment strategies include blue-green deployments, canary releases, and rolling updates. Infrastructure as Code ensures environment consistency.
+## 1) What Compose provides
 
-Professional development teams use CI/CD for faster releases, reduced manual errors, and improved code quality. Popular CI/CD tools include GitHub Actions, GitLab CI, Jenkins, and CircleCI. Understanding pipeline design, testing strategies, and deployment patterns enables building reliable automated delivery pipelines.`;
+- Defines services, networks, and volumes declaratively
+- Starts everything with one command
+- Gives each service a DNS name (service name) on the Compose network
+
+---
+
+## 2) Example: API + Postgres
+
+\`\`\`yaml
+services:
+  db:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://app:app@db:5432/app
+    depends_on:
+      - db
+
+volumes:
+  db_data:
+\`\`\`
+
+---
+
+## 3) Commands you’ll actually use
+
+\`\`\`bash
+docker compose up -d
+docker compose logs -f
+docker compose exec api sh
+docker compose down
+\`\`\`
+
+---
+
+## 4) Real-world tips
+
+- Use healthchecks for databases and wait-for logic for dependent services.
+- Prefer named volumes for DB persistence.
+- You can externalize secrets via an env file and variable substitution like \`\${POSTGRES_PASSWORD}\`.
+`;
     }
-    if (lowerTitle.includes('github actions')) {
+
+    if (lowerTitle === 'kubernetes') {
       return `# ${title}
 
-GitHub Actions provides CI/CD automation directly in GitHub repositories. Actions run workflows triggered by repository events like pushes, pull requests, or schedules. GitHub Actions simplifies automation without external CI services. Understanding GitHub Actions enables building sophisticated automation workflows.
+Kubernetes (K8s) is a container orchestrator that runs containers across a cluster of machines with self-healing, scaling, and rolling deployments. It’s common in larger organizations and platform teams.
 
-Workflows are YAML files in .github/workflows defining jobs, steps, and triggers. Jobs run on GitHub-hosted or self-hosted runners. Actions (reusable units) perform specific tasks - checkout code, setup Node.js, run tests. Marketplace offers thousands of pre-built actions.
+---
 
-Common workflows include testing on pull requests, building and publishing Docker images, deploying to cloud platforms, and automating releases. Matrix strategies test across multiple platforms and versions. Secrets store sensitive credentials securely. Workflow status badges show build health.
+## 1) Essential objects
 
-Professional repositories use GitHub Actions for automated testing, deployment, code quality checks, and dependency updates. GitHub Actions integrates seamlessly with GitHub features like pull request status checks. Understanding workflow syntax, action composition, and best practices enables powerful automation directly in code repositories.`;
+- **Pod**: smallest unit (one or more containers)
+- **Deployment**: manages replicas and rolling updates
+- **Service**: stable networking for pods
+- **ConfigMap / Secret**: configuration and sensitive values
+- **Ingress**: HTTP routing into the cluster
+
+---
+
+## 2) A tiny deployment example
+
+\`\`\`yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: my-org/api:1.0.0
+          ports:
+            - containerPort: 3000
+\`\`\`
+
+---
+
+## 3) Debugging basics
+
+\`\`\`bash
+kubectl get pods
+kubectl describe pod <pod>
+kubectl logs <pod>
+kubectl exec -it <pod> -- sh
+\`\`\`
+
+---
+
+## 4) Reality check
+
+Kubernetes is powerful but complex. Many teams start with managed platforms or serverless deployments and adopt K8s when operational requirements demand it.
+`;
     }
-    if (lowerTitle.includes('nginx')) {
+
+    if (lowerTitle === 'ci cd' || lowerTitle === 'ci/cd') {
       return `# ${title}
 
-Nginx is a high-performance web server, reverse proxy, and load balancer. Nginx efficiently handles static files, proxies requests to application servers, and balances load across multiple servers. Understanding Nginx is valuable for deploying production web applications and configuring infrastructure.
+CI/CD automates quality checks and deployments. The goal is to ship safely and frequently: every change is tested, built, and promoted through environments with minimal manual steps.
 
-As a reverse proxy, Nginx receives client requests and forwards them to backend servers, returning responses to clients. This enables SSL termination, caching, load balancing, and protecting backend servers. Nginx configuration uses declarative syntax defining server blocks, locations, and upstream servers.
+---
 
-Nginx excels at serving static files, SSL/TLS termination, request compression, and handling thousands of concurrent connections efficiently. Nginx can load balance across multiple application instances. Nginx Plus adds advanced features like health checks and dynamic reconfiguration.
+## 1) Typical pipeline stages
 
-Professional deployments use Nginx as reverse proxy for Node.js applications, API gateways, and load balancers. Nginx configuration handles redirects, rewrites, rate limiting, and security headers. Understanding Nginx configuration, performance tuning, and common patterns enables building robust production infrastructure.`;
+1) Lint + typecheck
+2) Unit tests
+3) Build artifacts (Docker image / compiled bundle)
+4) Integration tests
+5) Deploy to staging
+6) Deploy to production (manual approval or automated)
+
+---
+
+## 2) Key production practices
+
+- Fail fast: stop the pipeline on test failures.
+- Store secrets in the CI platform’s secret store.
+- Use immutable artifacts (e.g., deploy the same image that passed tests).
+- Prefer progressive delivery (canary/rolling) when possible.
+
+---
+
+## 3) Rollbacks and safety
+
+- Keep deployments reversible.
+- Use feature flags for risky changes.
+- Monitor after deploy (errors, latency, saturation).
+`;
     }
-    if (lowerTitle.includes('linux')) {
+
+    if (lowerTitle === 'github actions') {
       return `# ${title}
 
-Linux is the dominant operating system for servers, cloud infrastructure, and development environments. Understanding Linux fundamentals is essential for backend developers and DevOps engineers. Linux knowledge enables managing servers, debugging production issues, and automating infrastructure operations.
+GitHub Actions runs CI/CD workflows in response to repository events (push, PR, schedule). Workflows live in \`.github/workflows\` and are versioned with your code.
 
-Essential Linux concepts include file system hierarchy, permissions (chmod, chown), processes (ps, top, kill), package management (apt, yum), and shell scripting. Common commands include ls, cd, grep, find, ssh, and systemctl. Understanding pipes, redirects, and command chaining enables powerful command-line workflows.
+---
 
-Linux servers require managing users, permissions, security, and services. SSH provides secure remote access. Systemd manages services and startup. Cron schedules tasks. Log files in /var/log contain diagnostic information. Understanding these systems enables maintaining production servers.
+## 1) Structure
 
-Professional developers use Linux for servers, containers, and development. Understanding Linux fundamentals, shell scripting, and system administration enables effective work in modern development environments. While GUI tools exist, command-line proficiency remains essential for efficient server management and automation.`;
+- workflow: the YAML file
+- jobs: run in parallel by default
+- steps: sequential commands/actions inside a job
+
+---
+
+## 2) Minimal Node.js CI workflow
+
+\`\`\`yaml
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+\`\`\`
+
+---
+
+## 3) Secrets and environment variables
+
+GitHub provides encrypted secrets. In workflows you typically reference them as \`\${{ secrets.MY_SECRET }}\`. Keep secrets out of logs.
+
+---
+
+## 4) Common upgrades
+
+- Add a build job and upload artifacts
+- Add a deploy job gated by environment approvals
+- Add matrix testing (Node 18/20, Linux/Windows)
+`;
     }
-    if (lowerTitle.includes('docker compose')) {
+
+    if (lowerTitle === 'nginx') {
       return `# ${title}
 
-Docker Compose defines and runs multi-container applications using YAML configuration. Compose simplifies managing applications requiring multiple services - web servers, databases, caches. Single commands start entire stacks with proper networking and volumes. Docker Compose is essential for local development environments.
+Nginx is commonly used as a reverse proxy in front of Node.js apps. It can terminate TLS, serve static assets, compress responses, and route traffic to your application servers.
 
-Compose files define services (containers), networks, and volumes. Services specify images, ports, environment variables, and dependencies. Networks enable service communication. Volumes persist data across container restarts. docker-compose up starts all services, docker-compose down stops them. Scaling services uses replicas.
+---
 
-Compose benefits include declarative configuration, easy multi-service management, and consistent environments across team members. Compose files document application architecture. Compose simplifies local development requiring multiple services. Compose works for development and simple deployments but Kubernetes handles production at scale.
+## 1) Reverse proxy basics
 
-Professional teams use Compose for development environments, ensuring developers run identical stacks. Compose configurations often mirror production architectures. Understanding Compose syntax, service dependencies, and networking enables building complex development environments. Docker Compose bridges the gap between local development and production deployments.`;
+- Client -> Nginx -> App server (Node)
+- Nginx handles slow clients efficiently and protects upstream servers.
+
+---
+
+## 2) Minimal reverse proxy config (concept)
+
+\`\`\`nginx
+server {
+  listen 80;
+  server_name example.com;
+
+  location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+\`\`\`
+
+---
+
+## 3) Real-world features
+
+- TLS termination + HTTP/2
+- gzip/brotli compression
+- rate limiting and basic DDoS protection
+- caching of static assets
+- blue/green routing via upstream blocks
+`;
     }
+
+    if (lowerTitle === 'pm2') {
+      return `# ${title}
+
+PM2 is a production process manager for Node.js. It keeps your app running, restarts on crashes, supports log management, and can run apps in cluster mode to use multiple CPU cores.
+
+---
+
+## 1) Why PM2 is used
+
+- Automatic restarts on crash
+- Simple startup scripts for server boot
+- Log aggregation and monitoring
+- Cluster mode (multiple instances behind one port)
+
+---
+
+## 2) Common commands
+
+\`\`\`bash
+pm2 start index.js --name api
+pm2 list
+pm2 logs api
+pm2 restart api
+pm2 reload api
+\`\`\`
+
+Cluster mode:
+
+\`\`\`bash
+pm2 start index.js -i max --name api
+\`\`\`
+
+---
+
+## 3) Ecosystem file (recommended)
+
+\`\`\`js
+module.exports = {
+  apps: [
+    {
+      name: 'api',
+      script: 'index.js',
+      instances: 'max',
+      exec_mode: 'cluster',
+      env: {
+        NODE_ENV: 'production'
+      }
+    }
+  ]
+};
+\`\`\`
+
+---
+
+## 4) Startup on reboot
+
+\`\`\`bash
+pm2 startup
+pm2 save
+\`\`\`
+`;
+    }
+
     return null; // Return null if no specific content found for DevOps
   }
 
   // Cloud Topics
   if (category === 'Cloud') {
-    if (lowerTitle.includes('aws')) {
+    if (lowerTitle === 'aws basics') {
       return `# ${title}
 
-Amazon Web Services (AWS) is the leading cloud platform offering computing, storage, databases, networking, and hundreds of other services. AWS enables building scalable applications without managing physical infrastructure. Understanding AWS fundamentals is valuable for modern application development and deployment.
+AWS (Amazon Web Services) is a cloud platform that provides on-demand infrastructure: compute, storage, networking, databases, and many managed services. “Knowing AWS” usually means understanding the basics well enough to design, deploy, and operate a web application safely.
 
-Core AWS services include EC2 (virtual servers), S3 (object storage), RDS (managed databases), Lambda (serverless functions), and VPC (networking). AWS provides global infrastructure spanning regions and availability zones ensuring high availability. IAM manages permissions and access control.
+---
 
-AWS benefits include pay-as-you-go pricing, global scale, extensive service catalog, and reliability. However, AWS complexity can be overwhelming. Understanding which services solve which problems is crucial. Cost management and security require careful attention.
+## 1) The AWS mental model
 
-Professional applications leverage AWS for scalable, reliable infrastructure. Major companies including Netflix, Airbnb, and NASA use AWS. Understanding AWS core services, pricing models, and architecture patterns enables building cloud-native applications. AWS skills are highly valued in the job market.`;
+- **Account**: your billing and security boundary
+- **Region**: a geographic area (choose based on latency/compliance)
+- **Availability Zones (AZs)**: isolated datacenters inside a region
+- **VPC**: your private network (subnets, routing, security)
+
+---
+
+## 2) Shared responsibility model
+
+- AWS secures the physical infrastructure.
+- You secure what you configure: IAM, network rules, data encryption, application code.
+
+---
+
+## 3) Core services every full-stack dev should recognize
+
+- Compute: EC2, Lambda
+- Storage: S3
+- Databases: RDS
+- Networking: VPC, Load Balancers
+- Identity: IAM
+- Observability: CloudWatch
+
+---
+
+## 4) Practical habits
+
+- Use least-privilege IAM.
+- Enable logging/monitoring early.
+- Tag resources for cost tracking.
+- Understand costs: traffic, storage, and managed services can surprise you.
+`;
     }
-    if (lowerTitle.includes('ec2')) {
+
+    if (lowerTitle === 'ec2') {
       return `# ${title}
 
-EC2 (Elastic Compute Cloud) provides resizable virtual servers in AWS. EC2 instances run Linux or Windows with configurable CPU, memory, storage, and networking. Understanding EC2 enables running applications on AWS infrastructure with flexible scaling and pricing options.
+EC2 provides virtual machines in AWS. You control the OS and runtime, so EC2 is flexible, but you also take on more operational responsibility than serverless/PaaS.
 
-EC2 instances launch from AMIs (Amazon Machine Images) - templates including operating systems and software. Instance types optimize for different workloads - compute-optimized, memory-optimized, storage-optimized. Security groups control inbound and outbound traffic. Elastic IPs provide static IP addresses.
+---
 
-EC2 pricing includes On-Demand (pay by hour), Reserved (commitment discounts), and Spot (unused capacity at lower prices). Auto Scaling automatically adjusts instance count based on demand. Load Balancers distribute traffic across instances. EBS volumes provide persistent storage.
+## 1) What you configure
 
-Professional applications use EC2 for web servers, application servers, and batch processing. While containers and serverless reduce EC2 usage, EC2 remains relevant for specific workloads, legacy applications, or cost optimization. Understanding EC2 fundamentals is essential for AWS architecture decisions.`;
+- Instance type (CPU/memory)
+- AMI (base image)
+- Storage (EBS volumes)
+- Networking (VPC, subnets)
+- Security groups (firewall rules)
+
+---
+
+## 2) Common EC2 patterns
+
+- EC2 behind a load balancer for web apps
+- Auto Scaling Groups for elasticity
+- Bastion hosts (less common now) or SSM for access
+
+---
+
+## 3) Operational basics
+
+- Patch management, backups, log shipping
+- Config management (user data, Ansible, images)
+- Monitoring and alerting
+
+---
+
+## 4) When EC2 is a good choice
+
+- You need OS-level control
+- You run long-lived workloads at steady traffic
+- You’re migrating legacy software
+`;
     }
-    if (lowerTitle.includes('s3')) {
+
+    if (lowerTitle === 's3') {
       return `# ${title}
 
-S3 (Simple Storage Service) provides object storage for any amount of data. S3 stores files (objects) in buckets with 99.999999999% durability. S3 is fundamental to AWS architecture, used for backups, static websites, data lakes, and application storage.
+S3 is object storage for files and blobs (images, PDFs, backups). It is extremely durable and scales automatically. In many architectures, S3 is the source of truth for user uploads and static assets.
 
-Objects have keys (filenames), data (file content), and metadata. Buckets are containers for objects with configurable permissions, versioning, and lifecycle policies. S3 supports server-side encryption, access logging, and event notifications. Pre-signed URLs provide temporary access to private objects.
+---
 
-S3 storage classes optimize for different access patterns: Standard (frequent access), Intelligent-Tiering (automatic optimization), Infrequent Access (cheaper for rarely accessed data), Glacier (archival). S3 Transfer Acceleration speeds uploads for global users. CloudFront CDN delivers S3 content globally.
+## 1) Key concepts
 
-Professional applications use S3 for user uploads, backups, static assets, logs, and data lakes. S3 integrates with AWS services like Lambda and Athena. Understanding S3 features, storage classes, and security enables efficient, cost-effective storage solutions. S3 is one of AWS's most fundamental services.`;
+- Bucket: container for objects
+- Object: data + key + metadata
+- Policies: bucket policies and IAM permissions
+
+---
+
+## 2) Common use cases
+
+- User uploads (avatars, resumes)
+- Static site hosting + CDN
+- Backups and logs
+- Data lake storage
+
+---
+
+## 3) Security must-knows
+
+- Block public access by default
+- Use pre-signed URLs for controlled uploads/downloads
+- Enable encryption at rest
+- Turn on versioning when data recovery matters
+`;
     }
-    if (lowerTitle.includes('vercel')) {
+
+    if (lowerTitle === 'rds') {
       return `# ${title}
 
-Vercel is a deployment platform optimized for frontend frameworks, especially Next.js (created by Vercel). Vercel provides zero-config deployments, automatic scaling, CDN distribution, and preview deployments. Vercel simplifies deploying modern web applications with excellent developer experience.
+RDS (Relational Database Service) is AWS’s managed relational database offering. It runs engines like Postgres and MySQL while handling backups, patching, monitoring, and high availability options.
 
-Vercel deploys via Git integration - push to GitHub triggers automatic deployments. Preview deployments create unique URLs for each pull request, enabling testing before merging. Production deployments update live sites. Vercel handles SSL certificates, CDN distribution, and caching automatically.
+---
 
-Vercel specializes in Next.js but supports React, Vue, Angular, and static sites. Serverless Functions enable backend APIs. Edge Functions run code close to users globally. Analytics and Web Vitals monitoring provide insights. Vercel integrates with Headless CMSs and databases.
+## 1) What RDS manages for you
 
-Professional teams use Vercel for marketing sites, web applications, and documentation. Git-based workflows, automatic previews, and zero-config deployment accelerate development. Understanding Vercel's features, pricing, and optimization techniques enables maximizing platform benefits. Vercel abstracts infrastructure complexity while maintaining flexibility.`;
+- Automated backups + point-in-time restore
+- Monitoring/metrics
+- Minor version patching (configurable)
+- Multi-AZ failover (high availability)
+
+---
+
+## 2) Features you should know
+
+- **Multi-AZ**: standby replica in another AZ for failover
+- **Read replicas**: scale reads and offload reporting
+- **Parameter groups**: DB configuration settings
+- **Security**: VPC networking + security groups + IAM-based access patterns
+
+---
+
+## 3) Production tips
+
+- Use connection pooling (especially with serverless apps).
+- Understand backup retention and restore drills.
+- Monitor slow queries and CPU/storage.
+- Plan upgrades (engine version changes are operational events).
+`;
     }
-    if (lowerTitle.includes('firebase')) {
+
+    if (lowerTitle === 'lambda') {
       return `# ${title}
 
-Firebase is Google's Backend-as-a-Service platform providing databases, authentication, hosting, and more. Firebase enables building full-stack applications without backend server code. Real-time Database and Firestore provide NoSQL databases with real-time synchronization. Firebase accelerates development for web and mobile applications.
+AWS Lambda runs code on demand without managing servers. It scales automatically and charges per execution time. Lambda is great for event-driven workloads and bursty traffic.
 
-Firebase services include Authentication (user management), Firestore (document database), Realtime Database (JSON database), Storage (file storage), Hosting (static hosting), and Functions (serverless backend). Firebase provides SDKs for web, iOS, and Android with consistent APIs.
+---
 
-Firebase benefits include rapid development, real-time capabilities, automatic scaling, and Google Cloud integration. Firebase handles infrastructure, security rules control access, and offline support syncs data when connections restore. However, Firebase costs can escalate with usage and vendor lock-in concerns exist.
+## 1) How Lambda is used
 
-Professional applications use Firebase for prototypes, real-time features, and mobile backends. Understanding Firebase services, security rules, and pricing enables building applications quickly. Firebase suits small to medium applications and teams wanting fast development without backend infrastructure management.`;
+- HTTP APIs (via API Gateway or ALB)
+- Background jobs (queues, schedules)
+- File processing (S3 events)
+- Integrations and automation
+
+---
+
+## 2) Constraints to design around
+
+- Timeouts and memory limits
+- Cold starts (especially on certain runtimes)
+- Stateless execution (store state externally)
+
+---
+
+## 3) Operational best practices
+
+- Keep functions small and focused
+- Add structured logging and metrics
+- Use least-privilege permissions
+- Prefer idempotent handlers and safe retries
+`;
     }
-    if (lowerTitle.includes('lambda') || lowerTitle.includes('serverless')) {
+
+    if (lowerTitle === 'vercel') {
       return `# ${title}
 
-AWS Lambda runs code without managing servers (serverless computing). Lambda executes functions in response to events - HTTP requests, file uploads, database changes. Lambda automatically scales, runs functions only when triggered, and charges only for execution time. Understanding Lambda enables building cost-effective, scalable applications.
+Vercel is a developer-focused platform that excels at deploying Next.js apps with minimal configuration. It provides CI-like deployments, edge caching, preview URLs, and serverless/edge functions.
 
-Lambda functions are code responding to triggers. Common triggers include API Gateway (HTTP), S3 (file events), DynamoDB (database changes), and EventBridge (scheduled events). Functions have configurable memory, timeout, and environment variables. Lambda supports multiple languages including Node.js, Python, and Java.
+---
 
-Lambda benefits include no server management, automatic scaling, pay-per-use pricing, and built-in availability. However, Lambda has cold starts (initial delays), execution time limits, and stateless nature requiring external storage. Lambda suits event-driven, unpredictable workloads but may not be cost-effective for consistent high traffic.
+## 1) What Vercel is great at
 
-Professional applications use Lambda for APIs, data processing, automation, and event handling. Lambda combines with other AWS services to build serverless architectures. Understanding Lambda limits, best practices, and cost optimization enables leveraging serverless computing effectively. Serverless represents a paradigm shift in application architecture.`;
+- Next.js deployments with good defaults
+- Preview deployments for every PR
+- Global CDN and caching
+- Serverless/edge functions for API routes
+
+---
+
+## 2) Practical deployment workflow
+
+- Connect a Git repo
+- Each push creates a deployment
+- Promote a specific deployment to production
+
+---
+
+## 3) Things to watch
+
+- Environment variables per environment (preview/staging/prod)
+- Limits for serverless execution
+- Data layer strategy (managed DB, serverless DB, external APIs)
+`;
     }
+
+    if (lowerTitle === 'railway') {
+      return `# ${title}
+
+Railway is a PaaS that makes it easy to deploy full-stack apps (APIs, workers, databases) without learning deep infrastructure up front. It’s popular for side projects and early-stage production apps.
+
+---
+
+## 1) What Railway provides
+
+- Git-based deployments
+- Managed databases (Postgres, Redis, etc.)
+- Environment variables and service-to-service networking
+- Logs and basic metrics
+
+---
+
+## 2) Common deployment pattern
+
+- One service for the API
+- Optional background worker service
+- One managed database
+
+---
+
+## 3) Production guidance
+
+- Understand how scaling affects cost
+- Set health checks and start commands correctly
+- Back up the database and test restores
+- Use separate projects/environments for staging vs prod when possible
+`;
+    }
+
+    if (lowerTitle === 'render') {
+      return `# ${title}
+
+Render is a cloud platform that can deploy web services, background workers, cron jobs, and static sites. It aims to provide a simple developer experience while still supporting real production needs.
+
+---
+
+## 1) What Render is good for
+
+- Deploying Node.js APIs and full-stack apps
+- Running workers and scheduled jobs
+- Hosting static sites
+- Managed Postgres (depending on plan/features)
+
+---
+
+## 2) Typical setup
+
+- Web service (API)
+- Database
+- Environment variables
+- Auto-deploy on merge to main
+
+---
+
+## 3) Practical notes
+
+- Define build and start commands explicitly.
+- Configure health checks.
+- Watch cold-start behavior and scaling settings.
+- Keep logs structured for debugging.
+`;
+    }
+
+    if (lowerTitle === 'firebase') {
+      return `# ${title}
+
+Firebase is a Backend-as-a-Service platform from Google. It helps you build apps fast with managed authentication, hosting, databases, file storage, and serverless functions.
+
+---
+
+## 1) Core Firebase building blocks
+
+- Auth (login providers, tokens)
+- Firestore (document database)
+- Storage (file uploads)
+- Hosting (static hosting + CDN)
+- Functions (serverless backend)
+
+---
+
+## 2) What Firebase is great for
+
+- Prototyping and MVPs
+- Real-time user experiences
+- Mobile backends
+
+---
+
+## 3) Watch-outs
+
+- Security rules are your real backend authorization layer
+- Costs can scale with reads/writes and realtime usage
+- Vendor lock-in considerations for mature products
+`;
+    }
+
     return null; // Return null if no specific content found for Cloud
   }
 
@@ -17755,79 +24228,615 @@ Professional applications use Lambda for APIs, data processing, automation, and 
     if (lowerTitle.includes('scalability')) {
       return `# ${title}
 
-Scalability is a system's ability to handle growing workload by adding resources. Vertical scaling adds resources to single servers (more CPU, RAM), while horizontal scaling adds more servers. Understanding scalability is crucial for building systems supporting business growth without complete rewrites.
+Scalability is the ability to handle more load while keeping latency and reliability acceptable. “More load” can mean more users, more requests per second, larger datasets, or more background work.
 
-Scalability challenges include database bottlenecks, stateful sessions, file storage, and consistency across distributed systems. Solutions include database sharding, stateless architecture, distributed caching, and CDNs. Load balancers distribute requests across servers. Microservices enable independent scaling of different features.
+---
 
-Horizontal scaling provides better fault tolerance and allows scaling beyond single-server limits. However, horizontal scaling increases complexity - distributed systems face network latency, partial failures, and consistency challenges. Understanding CAP theorem helps make tradeoffs between consistency, availability, and partition tolerance.
+## 1) Scale up vs scale out
 
-Professional systems plan for scale from the start through proper architecture. Premature optimization wastes resources, but fundamental design decisions affect scalability dramatically. Understanding bottlenecks, measuring performance, and scaling strategically enables supporting growing user bases. Scalability is essential for successful applications.`;
+- **Vertical scaling (scale up)**: bigger machine (CPU/RAM)
+  - simpler operationally, but has a ceiling
+- **Horizontal scaling (scale out)**: more machines
+  - higher ceiling + better fault tolerance, but adds distributed-systems complexity
+
+---
+
+## 2) Measure first (avoid guessing)
+
+Track:
+- p50/p95/p99 latency per endpoint
+- error rate
+- throughput (RPS, jobs/sec)
+- saturation signals (CPU, memory, DB connections, queue depth)
+
+Scaling without measurement often makes systems slower or more expensive.
+
+---
+
+## 3) The common scaling ladder
+
+1) **Make the hot path cheaper**
+- fix slow queries, add indexes, cut payload sizes, remove blocking work
+
+2) **Cache read-heavy data**
+- CDN for static assets, Redis/memory for hot objects, short TTLs where freshness matters
+
+3) **Reduce coupling**
+- make services stateless
+- move long work to background jobs/queues
+
+4) **Scale the data layer**
+- read replicas for reads
+- partitioning/sharding when a single node is the bottleneck
+
+---
+
+## 4) Statelessness and shared state
+
+Common gotchas:
+- sessions stored in memory on a single server → breaks when you add servers
+- file uploads stored on local disk → breaks with multiple instances
+
+Fixes:
+- store sessions in Redis (or use signed stateless tokens)
+- store files in object storage (S3/GCS/Azure Blob)
+
+---
+
+## 5) New failure modes at scale
+
+Horizontal systems must handle:
+- network timeouts and retries
+- partial failures (one node dies)
+- eventual consistency in replicas/async workflows
+
+Design for timeouts, idempotency, and graceful degradation.
+
+---
+
+## 6) Practice
+
+1) Draw a scaling plan for a \`todo app\` going from 100 → 100k users.
+2) List 5 metrics you’d alert on (include a DB metric and a queue metric).
+3) Identify one stateful component and redesign it to be stateless.
+`;
     }
     if (lowerTitle.includes('load balancer')) {
       return `# ${title}
 
-Load balancers distribute incoming traffic across multiple servers, improving availability and scalability. Load balancers prevent single servers from becoming overwhelmed and enable horizontal scaling. Understanding load balancing is essential for building highly available, scalable applications.
+A load balancer (LB) sits in front of your servers and distributes incoming traffic across multiple instances. It improves **availability**, enables **horizontal scaling**, and makes deployments safer.
 
-Load balancing algorithms include Round Robin (equal distribution), Least Connections (route to least busy server), IP Hash (consistent routing per client), and Weighted (servers handle proportional load based on capacity). Health checks ensure traffic only routes to healthy servers.
+\`\`\`text
+Client -> Load Balancer -> app-1
+                       -> app-2
+                       -> app-3
+\`\`\`
 
-Load balancers operate at different layers - Layer 4 (TCP/UDP) and Layer 7 (HTTP/HTTPS). Layer 7 balancers enable routing based on URLs, headers, or cookies. SSL termination at load balancers offloads encryption from application servers. Session persistence ensures requests from same client reach the same server when needed.
+---
 
-Professional applications use load balancers for high availability, zero-downtime deployments, and horizontal scaling. Cloud providers offer managed load balancers (AWS ELB, Azure Load Balancer). Understanding load balancing strategies, health checks, and session management enables building resilient, scalable systems.`;
+## 1) Layer 4 vs Layer 7
+
+- **L4 (TCP/UDP)**: forwards connections based on IP/port; fast; no HTTP awareness
+- **L7 (HTTP/HTTPS)**: routes by path/host/headers; can do redirects and WAF rules
+
+---
+
+## 2) Routing algorithms
+
+Common options:
+- **Round robin**: simple baseline
+- **Least connections**: helps when request duration varies
+- **Weighted**: bigger servers get more traffic
+- **Consistent hashing**: keeps a client “sticky” without cookies (useful for caches)
+
+---
+
+## 3) Health checks + draining
+
+- **Health checks** remove unhealthy instances from rotation.
+- **Connection draining** (graceful shutdown) lets in-flight requests finish during deploys.
+- Prefer instances across failure domains (AZs) for real HA.
+
+---
+
+## 4) Sticky sessions (session affinity)
+
+Sticky sessions route a user to the same backend instance. They can be convenient, but they reduce resilience and complicate scaling.
+
+Better long-term options:
+- stateless auth (signed tokens) or
+- a shared session store (Redis)
+
+---
+
+## 5) TLS termination and forwarded headers
+
+If the LB terminates TLS, your app should respect headers like:
+- \`X-Forwarded-For\` (client IP)
+- \`X-Forwarded-Proto\` (http/https)
+
+Make sure your framework is configured to trust the proxy/LB correctly.
+
+---
+
+## 6) Practice
+
+1) Explain when you would choose L4 vs L7 for an API.
+2) Design health checks for an app that depends on a database.
+3) Describe how you would do a zero-downtime deployment behind an LB.
+`;
     }
     if (lowerTitle.includes('caching')) {
       return `# ${title}
 
-Caching stores frequently accessed data in fast storage to reduce latency and database load. Caches significantly improve performance and scalability. Understanding caching strategies, invalidation, and tradeoffs is crucial for optimizing application performance.
+Caching is storing results in a faster place so repeated reads don’t hit the slowest layer (often the database). It’s one of the highest-impact scaling tools — but correctness depends on your invalidation strategy.
 
-Cache locations include client-side (browser cache), CDN (static assets), application cache (Redis, Memcached), and database cache. Cache-aside (lazy loading) loads data on cache miss. Write-through writes to cache and database simultaneously. Write-behind writes to cache immediately, database asynchronously.
+---
 
-Cache invalidation is famously difficult - determining when to remove or update cached data. TTL (Time To Live) expires cache after set duration. Cache keys must uniquely identify data. Cache stampede occurs when many requests simultaneously miss cache, overwhelming database. Solutions include locking and early expiration.
+## 1) Where caches live (layers)
 
-Professional applications strategically cache database queries, API responses, computed results, and static assets. Cache hit rates measure effectiveness. Understanding what, where, and how long to cache requires balancing freshness and performance. Caching is one of the most effective performance optimizations.`;
+- Browser cache (static assets)
+- CDN/edge cache (global)
+- In-process memory (fastest, per instance)
+- Distributed cache (Redis/Memcached)
+- Database cache (buffer pool)
+
+---
+
+## 2) Cache patterns
+
+- **Cache-aside (lazy)**: app checks cache first, fetches DB on miss
+- **Read-through**: cache fetches from DB on miss (library/infra)
+- **Write-through**: write DB and cache together (simpler reads, more write cost)
+- **Write-behind**: write cache first, flush later (fast writes, riskier)
+
+---
+
+## 3) Cache keys + TTL + invalidation
+
+Good cache keys:
+- include all inputs that change the result (user id, locale, filters)
+- are versioned (e.g., \`v1:\` prefix) so you can invalidate by bumping version
+
+Invalidation options:
+- TTL-only (eventual freshness)
+- explicit delete/update on write
+- publish events (“user updated”) and invalidate consumers
+
+---
+
+## 4) Failure modes (and mitigations)
+
+- **Stampede / thundering herd**: many misses at once
+  - mitigate with request coalescing/locking + stale-while-revalidate
+- **Cache penetration**: repeated requests for missing keys
+  - mitigate with negative caching + short TTL
+- **Poisoning**: cache stores bad data
+  - mitigate with validation + scoped TTLs + safe serialization
+
+---
+
+## 5) Example: cache-aside in Node
+
+\`\`\`js
+async function getUser(id, { redis, db }) {
+  const key = 'user:' + id;
+
+  const cached = await redis.get(key);
+  if (cached) return JSON.parse(cached);
+
+  const user = await db.user.findUnique({ where: { id } });
+  if (!user) return null;
+
+  await redis.set(key, JSON.stringify(user), 'EX', 60);
+  return user;
+}
+\`\`\`
+
+---
+
+## 6) Practice
+
+1) Choose 3 endpoints you would cache and justify TTLs.
+2) Describe an invalidation strategy for “user updates profile”.
+3) Explain how you would prevent a cache stampede on a popular homepage.
+`;
     }
     if (lowerTitle.includes('cdn')) {
       return `# ${title}
 
-Content Delivery Networks (CDNs) distribute static content across geographically distributed servers, delivering files from servers closest to users. CDNs dramatically reduce latency, improve load times, and reduce origin server load. Understanding CDNs is essential for optimizing global application performance.
+A CDN (Content Delivery Network) caches and serves content from edge locations near users. It reduces latency, offloads your origin servers, and helps absorb traffic spikes.
 
-CDNs cache static assets like images, CSS, JavaScript, and videos at edge locations worldwide. When users request content, CDN serves from nearest edge location. Cache misses fetch from origin servers then cache for future requests. CDNs handle traffic spikes by distributing load across many servers.
+---
 
-CDN features include SSL/TLS termination, DDoS protection, image optimization, and compression. CDN providers include Cloudflare, AWS CloudFront, and Fastly. Cache control headers configure caching behavior. Purge APIs invalidate cached content when updated.
+## 1) What to put behind a CDN
 
-Professional applications use CDNs for static assets, improving performance globally. CDNs are especially beneficial for media-heavy sites, global audiences, and traffic spikes. Understanding CDN configuration, caching strategies, and cost optimization ensures maximum benefit. CDNs are fundamental to modern web performance.`;
+Great fits:
+- images, JS/CSS bundles, fonts
+- downloads and video segments
+- public, cacheable GET responses (sometimes)
+
+Be careful with:
+- personalized HTML and authenticated APIs (easy to leak data if cached incorrectly)
+
+---
+
+## 2) Cache-Control in practice
+
+- \`max-age\`: browser cache
+- \`s-maxage\`: shared caches (CDN)
+- \`immutable\`: asset never changes (use with hashed filenames)
+- \`stale-while-revalidate\`: serve cached while refreshing
+
+Example for versioned assets:
+
+\`\`\`http
+Cache-Control: public, max-age=31536000, immutable
+\`\`\`
+
+Example for public feeds:
+
+\`\`\`http
+Cache-Control: public, max-age=60, s-maxage=60, stale-while-revalidate=300
+\`\`\`
+
+---
+
+## 3) Invalidation strategies
+
+Prefer **versioning** over purging:
+- ship assets with content hashes (app.8f3c1.js)
+- set long cache times
+- new deploy = new URLs
+
+Use purge/invalidation when you must (rare, but necessary for non-versioned assets).
+
+---
+
+## 4) Common CDN features
+
+- TLS termination, HTTP/2 and HTTP/3
+- DDoS protection and WAF
+- compression (gzip/brotli)
+- image resizing/optimization
+- edge functions (small code at the edge)
+
+---
+
+## 5) Common mistakes
+
+- caching responses that vary by \`Authorization\` or cookies
+- missing \`Vary\` headers (content differs per Accept-Encoding/locale)
+- forgetting CORS headers for fonts/assets
+
+---
+
+## 6) Practice
+
+1) Decide which parts of a blog app should be CDN-cached.
+2) Propose cache headers for: (a) hashed JS bundle, (b) HTML page, (c) JSON public feed.
+3) Describe how you would roll out a breaking change without users getting stale assets.
+`;
     }
     if (lowerTitle.includes('rate limiting')) {
       return `# ${title}
 
-Rate limiting controls request frequency from clients, preventing abuse, protecting resources, and ensuring fair usage. Rate limits are expressed as requests per time window (e.g., 100 requests per minute). Understanding rate limiting is essential for building robust, secure APIs.
+Rate limiting caps how many requests a client can make in a window (e.g., 100/min). It protects your system from abuse and accidental overload, and it’s a key building block for multi-tenant APIs.
 
-Rate limiting strategies include fixed window (simple but allows bursts), sliding window (smoother but more complex), token bucket (allows bursts up to bucket size), and leaky bucket (constant rate). Rate limits can be per IP, per user, or global. Different endpoints may have different limits.
+---
 
-Rate limit responses include 429 Too Many Requests status, Retry-After headers indicating wait time, and current limit status headers. Graceful degradation serves cached or reduced functionality when limits reached. Rate limits protect against DDoS attacks, scraping, and buggy clients.
+## 1) Decide what to limit
 
-Professional APIs implement rate limiting to ensure stability and fair resource usage. Rate limiting prevents single clients from monopolizing resources. Understanding rate limiting algorithms, storage (Redis), and user experience enables balancing security and usability. Rate limiting is essential for production APIs.`;
+- by IP (good for unauthenticated traffic)
+- by user/account (best for authenticated APIs)
+- by API key (common for public developer APIs)
+- per endpoint (stricter for login/password reset)
+
+Also define burst vs sustained limits.
+
+---
+
+## 2) Common algorithms
+
+- **Fixed window**: simplest; allows edge bursts
+- **Sliding window**: smoother; more complex
+- **Token bucket**: allows bursts up to bucket size; great default
+- **Leaky bucket**: smooth constant outflow
+
+---
+
+## 3) Distributed rate limiting (real world)
+
+In a multi-instance backend you need shared state:
+- Redis is common for counters/tokens
+- use atomic operations (Lua scripts) to avoid race conditions
+
+---
+
+## 4) UX + HTTP responses
+
+- return \`429 Too Many Requests\`
+- include \`Retry-After\` when possible
+- optional headers:
+  - \`X-RateLimit-Limit\`
+  - \`X-RateLimit-Remaining\`
+  - \`X-RateLimit-Reset\`
+
+---
+
+## 5) Example: simple fixed-window limiter (Redis)
+
+\`\`\`js
+async function rateLimit({ redis, key, limit, windowSec }) {
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, windowSec);
+  return count <= limit;
+}
+\`\`\`
+
+---
+
+## 6) Practice
+
+1) Design limits for: login, search, file upload.
+2) Explain why per-IP limiting alone is insufficient for authenticated APIs.
+3) Describe how you’d avoid blocking internal services (allowlists / separate limits).
+`;
     }
     if (lowerTitle.includes('message queue')) {
       return `# ${title}
 
-Message queues enable asynchronous communication between services by buffering messages in reliable queues. Producers send messages, consumers process them independently. Message queues decouple services, enable load leveling, and improve system resilience. Understanding message queues is valuable for distributed systems.
+Message queues move work off the request/response path and process it asynchronously. They decouple producers (who create work) from consumers (who do work) and help you handle spikes safely.
 
-Popular message queue systems include RabbitMQ, AWS SQS, and Redis. Queues store messages durably, delivering them to consumers when ready. Dead letter queues handle failed messages. Priority queues process high-priority messages first. Message acknowledgment ensures reliable processing.
+---
 
-Message queues enable background job processing, microservice communication, and handling traffic spikes. Long-running tasks move to queues, responding immediately to users. Queues buffer between fast producers and slow consumers. Multiple consumers process queues in parallel, enabling horizontal scaling.
+## 1) Core concepts
 
-Professional applications use queues for email sending, image processing, report generation, and service integration. Understanding queue patterns (point-to-point vs pub/sub), message durability, and error handling enables building resilient asynchronous systems. Message queues are fundamental to scalable architectures.`;
+- **Producer**: sends messages/jobs
+- **Queue**: durable buffer
+- **Consumer/worker**: pulls and processes messages
+- **Ack**: confirms processing succeeded
+- **Retry + DLQ**: failures retry, then go to a dead-letter queue
+
+---
+
+## 2) Delivery guarantees (and why idempotency matters)
+
+Common guarantees:
+- **at-least-once** (most common): a message may be delivered twice
+- **at-most-once**: messages may be lost
+- **exactly-once**: very hard and usually not what you think
+
+Design handlers to be **idempotent**:
+- use unique job IDs
+- check “already processed” before applying side effects
+
+---
+
+## 3) When to use queues
+
+- email sending, image/video processing
+- webhook handling and retries
+- report generation
+- fan-out work (turn 1 request into N jobs)
+
+---
+
+## 4) Practical concerns
+
+- ordering: often guaranteed only per key/partition
+- visibility timeouts: prevent two workers processing the same job
+- poison messages: cap retries; send to DLQ
+- backpressure: scale workers based on queue depth
+
+---
+
+## 5) Example flow (high level)
+
+\`\`\`text
+API request -> enqueue job -> respond 202
+worker -> process -> ack (or retry -> DLQ)
+\`\`\`
+
+---
+
+## 6) Practice
+
+1) Move “send welcome email” into a background job.
+2) Define a retry policy (max retries, backoff, DLQ).
+3) Explain how you’d make an email-sending job idempotent.
+`;
     }
     if (lowerTitle.includes('cap theorem')) {
       return `# ${title}
 
-CAP theorem states distributed systems can provide only two of three guarantees: Consistency (all nodes see same data), Availability (every request receives response), and Partition Tolerance (system works despite network failures). Understanding CAP guides distributed system design decisions.
+CAP theorem is a mental model for distributed systems: during a network partition, you can’t simultaneously guarantee **Consistency** and **Availability**. Since partitions can and will happen, real systems choose their tradeoffs.
 
-In practice, partition tolerance is required (networks fail), forcing choices between consistency and availability. CP systems (e.g., MongoDB with strong consistency) sacrifice availability during partitions. AP systems (e.g., Cassandra) sacrifice consistency, allowing divergent data. Different consistency levels provide flexibility.
+---
 
-Consistency models include strong consistency (immediate consistency), eventual consistency (converges eventually), and bounded staleness (consistent within time bound). Many systems offer tunable consistency, allowing applications to choose per operation. Understanding tradeoffs enables appropriate choices for different data types.
+## 1) Definitions (practical)
 
-Professional distributed systems carefully consider CAP tradeoffs. Critical data may require consistency (financial transactions), while less critical data may prefer availability (social media feeds). Understanding CAP theorem, consistency models, and database characteristics enables making informed architecture decisions for distributed systems.`;
+- **Consistency (C)**: reads see the latest committed write (strong consistency)
+- **Availability (A)**: every request gets a non-error response (not “correct”, just “a response”)
+- **Partition tolerance (P)**: the system continues despite network splits between nodes
+
+---
+
+## 2) The important nuance
+
+- You don’t “pick two” all the time.
+- You decide what to do **when a partition occurs**:
+  - return errors (favor consistency)
+  - return possibly stale data (favor availability)
+
+---
+
+## 3) CP vs AP (intuition)
+
+- **CP-ish** systems may refuse reads/writes during partitions to preserve consistency.
+- **AP-ish** systems accept reads/writes but may serve stale/conflicting data.
+
+Many databases are configurable and sit on a spectrum, not a box.
+
+---
+
+## 4) Consistency models you’ll encounter
+
+- strong/linearizable
+- read-after-write consistency (important for user-facing UX)
+- eventual consistency
+- quorum consistency
+
+A common quorum rule is: \`R + W > N\` for strong reads, where N is replication factor.
+
+---
+
+## 5) Applying CAP to product decisions
+
+- payments, inventory, security permissions → favor consistency
+- feeds, analytics dashboards → favor availability + graceful staleness
+
+Document which data is allowed to be stale and for how long.
+
+---
+
+## 6) Practice
+
+1) For a shopping cart, which operations must be strongly consistent?
+2) For a social feed, what “stale but available” behavior is acceptable?
+3) Write a short incident plan: what happens if replicas can’t talk to the leader?
+`;
+    }
+
+    if (lowerTitle.includes('databases at scale')) {
+      return `# ${title}
+
+Scaling databases is often the hardest part of scaling a system. Compute can be scaled horizontally fairly easily, but databases must balance performance, cost, and correctness.
+
+---
+
+## 1) Where databases become bottlenecks
+
+- **Connection limits**: too many app instances can overwhelm the DB.
+- **Slow queries**: missing indexes, large joins, expensive sorts.
+- **Hot rows / hot partitions**: a small subset of data receives most traffic.
+- **Write amplification**: too many indexes or heavy transactions.
+- **Disk I/O**: random reads/writes, poor cache hit rates.
+
+---
+
+## 2) The common scaling ladder
+
+1) **Fix queries and indexes**
+- measure slow queries, add the right indexes, remove \`SELECT *\` on hot paths.
+
+2) **Add caching**
+- cache read-heavy endpoints and hot objects (Redis), use CDNs for static content.
+
+3) **Add read replicas**
+- offload reads to replicas; be aware of replication lag.
+
+4) **Partitioning / sharding**
+- split data across multiple nodes when one database cannot handle the load.
+
+---
+
+## 3) Architecture patterns that help
+
+- **Connection pooling** (critical for serverless and many-node deployments)
+- **CQRS** for heavy read projections
+- **Async workflows** with queues for long-running or bursty writes
+- **Outbox pattern** for reliable event publishing
+
+---
+
+## 4) The correctness tradeoffs
+
+- Strong consistency is simpler but can limit availability.
+- Read replicas and async flows often introduce eventual consistency.
+- Good systems make these tradeoffs explicit and document them.
+`;
+    }
+
+    if (lowerTitle.includes('sharding')) {
+      return `# ${title}
+
+Sharding splits a dataset across multiple database nodes (shards) so that no single database has to handle all reads/writes. Sharding can unlock massive scale, but it also increases operational and application complexity.
+
+---
+
+## 1) Sharding strategies
+
+- **Range sharding**: shard by a range (e.g., userId 1–1M on shard A). Can create hotspots.
+- **Hash sharding**: shard by hashing a key (spreads load more evenly).
+- **Directory-based**: a lookup service maps keys to shards (flexible, extra moving part).
+
+---
+
+## 2) Picking a shard key (the critical decision)
+
+Good shard keys:
+- are present in most queries
+- distribute traffic evenly
+- avoid hotspots
+
+Bad shard keys:
+- create uneven distribution (e.g., timestamp-only can hotspot “today”)
+- force cross-shard queries for common operations
+
+---
+
+## 3) Real-world challenges
+
+- Cross-shard joins and transactions are hard.
+- Aggregations may require scatter/gather.
+- Resharding (changing shard key or rebalancing) is complex and risky.
+
+---
+
+## 4) Practical guidance
+
+- Exhaust simpler options first: indexes, caching, read replicas.
+- Shard only when you have a clear, measured need.
+- Design the app API to include the shard key early.
+`;
+    }
+
+    if (lowerTitle.includes('consistent hashing')) {
+      return `# ${title}
+
+Consistent hashing is a technique that distributes keys across nodes so that when nodes are added or removed, only a small fraction of keys need to move. It’s widely used in caches, sharded systems, and load distribution.
+
+---
+
+## 1) The core idea
+
+- Hash both **nodes** and **keys** onto a ring.
+- A key maps to the next node clockwise.
+- When a node changes, only keys near that node are remapped.
+
+---
+
+## 2) Why it matters
+
+- Better stability during scaling events
+- Less cache churn when adding/removing nodes
+- More predictable redistribution than naive modulo hashing
+
+---
+
+## 3) Virtual nodes (vnodes)
+
+To reduce uneven distribution, each physical node can own multiple positions on the ring. This smooths out hotspots and improves balance.
+
+---
+
+## 4) Where you’ll see it
+
+- Distributed caches (e.g., sharded Redis client strategies)
+- Sharded databases or routing layers
+- Some load balancers and service discovery systems
+`;
     }
     return null; // Return null if no specific content found for System Design
   }
@@ -17837,79 +24846,509 @@ Professional distributed systems carefully consider CAP tradeoffs. Critical data
     if (lowerTitle.includes('https') || lowerTitle.includes('ssl') || lowerTitle.includes('tls')) {
       return `# ${title}
 
-HTTPS encrypts communication between browsers and servers using TLS (Transport Layer Security, formerly SSL). HTTPS prevents eavesdropping, tampering, and ensures server identity. HTTPS is now standard for web security - modern browsers warn users about insecure HTTP sites.
+HTTPS is HTTP over TLS. It encrypts traffic and authenticates the server so attackers can’t easily read or modify data in transit.
 
-HTTPS uses certificates issued by Certificate Authorities (CAs) verifying server identity. Browsers trust specific CAs, rejecting certificates from untrusted sources. Let's Encrypt provides free certificates with automated renewal. Certificate validity periods and renewal are critical operational concerns.
+---
 
-HTTPS encrypts data in transit, protecting passwords, personal information, and session tokens. HTTP/2 and HTTP/3 require HTTPS. HTTPS prevents man-in-the-middle attacks where attackers intercept traffic. Mixed content (HTTPS pages loading HTTP resources) creates vulnerabilities browsers block.
+## 1) What HTTPS gives you
 
-Professional websites exclusively use HTTPS for security and user trust. Understanding certificate management, TLS configuration, and common issues enables maintaining secure connections. HTTPS is legally required for handling sensitive data in many jurisdictions. Security-conscious development requires HTTPS everywhere.`;
+- **Confidentiality**: prevents eavesdropping on passwords/tokens
+- **Integrity**: detects tampering in transit
+- **Authentication**: browsers verify the server’s identity via certificates
+
+---
+
+## 2) Certificates and trust (high level)
+
+- Your server presents a certificate for a hostname (e.g., \`api.example.com\`).
+- The certificate chains up to a trusted Certificate Authority (CA).
+- Clients validate: hostname match, expiry dates, and the chain.
+
+---
+
+## 3) TLS termination and proxies
+
+In many deployments TLS terminates at a CDN/load balancer, and your app receives plain HTTP internally.
+
+Key points:
+- forward the original scheme/proto (\`X-Forwarded-Proto\`)
+- configure your framework to trust the proxy (otherwise redirects/cookies can break)
+
+---
+
+## 4) Operational checklist
+
+- Redirect HTTP → HTTPS.
+- Enable HSTS to prevent downgrade attacks:
+
+\`\`\`http
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+\`\`\`
+
+- Set secure cookie flags where applicable:
+
+\`\`\`http
+Set-Cookie: session=...; HttpOnly; Secure; SameSite=Lax
+\`\`\`
+
+---
+
+## 5) Common production issues
+
+- expired/soon-to-expire certificates (automate renewal)
+- hostname mismatch (certificate doesn’t cover the domain)
+- “mixed content” (HTTPS page loading HTTP scripts/images)
+- missing intermediate certificates (chain not served correctly)
+
+---
+
+## 6) Practice
+
+1) Explain the difference between encryption and authentication in TLS.
+2) Add an HTTP→HTTPS redirect and confirm cookies still work behind a proxy.
+3) Propose HSTS + cookie settings for a login-based web app.
+`;
     }
     if (lowerTitle.includes('cors')) {
       return `# ${title}
 
-CORS (Cross-Origin Resource Sharing) allows servers to specify which origins can access resources. Browsers block cross-origin requests by default for security. CORS headers enable legitimate cross-origin access while preventing unauthorized access. Understanding CORS is essential for API development.
+CORS (Cross-Origin Resource Sharing) is a browser security mechanism that controls which websites (origins) can read responses from your server. It’s enforced by browsers — not by server-to-server calls.
 
-CORS involves preflight requests (OPTIONS) for complex requests. Servers respond with Access-Control-Allow-Origin specifying allowed origins, Access-Control-Allow-Methods specifying allowed HTTP methods, and Access-Control-Allow-Headers specifying allowed custom headers. Credentials require Access-Control-Allow-Credentials.
+---
 
-Common CORS issues include misconfigured headers, missing OPTIONS handlers, and wildcard with credentials (not allowed). CORS errors appear in browser console. During development, proxies or browser extensions bypass CORS, but production requires proper configuration.
+## 1) Same-origin policy refresher
 
-Professional APIs configure CORS appropriately - specific origins for production, wildcards for public APIs. Understanding same-origin policy, preflight requests, and CORS headers prevents security issues while enabling legitimate cross-origin access. Overly permissive CORS creates security vulnerabilities.`;
+Two URLs are different origins if their **scheme**, **host**, or **port** differ.
+
+Example: \`https://app.example.com\` and \`https://api.example.com\` are different origins.
+
+---
+
+## 2) Simple requests vs preflight
+
+Browsers send an \`OPTIONS\` **preflight** when a request is “non-simple” (e.g., custom headers or non-GET/POST methods). Your server must respond with the right \`Access-Control-*\` headers.
+
+---
+
+## 3) Key headers you’ll configure
+
+- \`Access-Control-Allow-Origin\`: which origin is allowed (avoid \`*\` for private APIs)
+- \`Access-Control-Allow-Methods\`: allowed HTTP methods
+- \`Access-Control-Allow-Headers\`: allowed request headers
+- \`Access-Control-Allow-Credentials\`: allow cookies/credentials
+- \`Vary: Origin\`: important when you dynamically echo origins
+
+---
+
+## 4) Credentials (cookies) gotchas
+
+If you use cookies across origins:
+- you must set \`Access-Control-Allow-Credentials: true\`
+- you cannot use \`Access-Control-Allow-Origin: *\`
+- you typically echo the requesting origin if it’s in an allowlist
+
+---
+
+## 5) Express example (conceptual)
+
+\`\`\`js
+import cors from 'cors';
+
+app.use(cors({
+  origin: ['https://app.example.com'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+}));
+\`\`\`
+
+---
+
+## 6) Practice
+
+1) Explain when a preflight happens and why.
+2) Configure CORS for a SPA at \`https://app.example.com\` calling \`https://api.example.com\` with cookies.
+3) List three reasons CORS works in Postman but fails in the browser.
+`;
     }
     if (lowerTitle.includes('csrf')) {
       return `# ${title}
 
-CSRF (Cross-Site Request Forgery) tricks authenticated users into executing unwanted actions. Attackers create requests that browsers automatically include authentication cookies. CSRF can change passwords, transfer funds, or perform actions without user consent. Understanding CSRF prevents serious security vulnerabilities.
+CSRF (Cross-Site Request Forgery) happens when a browser automatically includes a user’s cookies on a cross-site request, letting an attacker trigger state-changing actions without the user’s intent.
 
-CSRF protection uses tokens that attackers cannot access. Synchronizer tokens embed unpredictable tokens in forms, verified on submission. Double-submit cookies send tokens in both cookie and form, comparing them. SameSite cookies prevent browsers from sending cookies on cross-site requests (modern, effective approach).
+---
 
-CSRF primarily affects state-changing requests (POST, PUT, DELETE). GET requests shouldn't change state (HTTP specification and CSRF defense). AJAX requests can use custom headers - same-origin policy prevents attackers from setting custom headers. Checking Origin and Referer headers provides partial protection.
+## 1) When CSRF is a risk
 
-Professional applications implement CSRF protection on all state-changing endpoints. Modern frameworks often include CSRF protection. Understanding CSRF attack vectors and protection mechanisms prevents unauthorized actions. CSRF protection is critical security requirement for web applications handling authentication.`;
+CSRF primarily affects apps that:
+- use **cookie-based authentication**
+- have state-changing endpoints (POST/PUT/PATCH/DELETE)
+
+If your API uses bearer tokens in the \`Authorization\` header and never relies on cookies, CSRF risk is lower — but XSS becomes more important.
+
+---
+
+## 2) Primary defenses
+
+- **SameSite cookies** (strong modern default)
+  - \`SameSite=Lax\` blocks most cross-site POSTs
+  - \`SameSite=None\` requires \`Secure\` and is needed for some cross-site flows
+- **CSRF tokens**
+  - server issues a token; client sends it back (often in a header)
+- **Origin/Referer checks**
+  - defense-in-depth (don’t rely on it alone)
+
+---
+
+## 3) Cookie settings example
+
+\`\`\`http
+Set-Cookie: session=...; HttpOnly; Secure; SameSite=Lax
+\`\`\`
+
+---
+
+## 4) Practical guidance
+
+- Make GET endpoints read-only (no state changes).
+- Protect every state-changing route, not just “important” ones.
+- Combine defenses: SameSite + token for higher assurance.
+
+---
+
+## 5) Practice
+
+1) Explain why CSRF works with cookies but not with a token stored only in memory.
+2) Propose CSRF defenses for a Next.js app using httpOnly session cookies.
+3) Identify which endpoints need CSRF protection in a typical CRUD API.
+`;
     }
     if (lowerTitle.includes('xss')) {
       return `# ${title}
 
-XSS (Cross-Site Scripting) injects malicious scripts into trusted websites. XSS occurs when applications include untrusted data without proper validation or escaping. XSS enables stealing session cookies, capturing keystrokes, or defacing sites. XSS is among the most common web vulnerabilities.
+XSS (Cross-Site Scripting) is when untrusted input ends up executed as JavaScript in a user’s browser. It can steal session tokens, perform actions as the user, or deface content.
 
-XSS types include stored XSS (malicious data persists in database, affecting all users), reflected XSS (malicious data immediately reflected, affecting victim user), and DOM-based XSS (vulnerability in client-side code). Prevention requires different approaches for each context - HTML, JavaScript, URLs, CSS.
+---
 
-XSS prevention requires sanitizing user input and escaping output appropriately for context. HTML escape converts &lt;, &gt;, &amp;, quotes to entities. JavaScript context requires different escaping. Content Security Policy (CSP) headers restrict script sources, preventing many XSS attacks even if injection occurs.
+## 1) Common XSS types
 
-Professional development treats all user input as untrusted, validating and sanitizing rigorously. Modern frameworks like React provide automatic HTML escaping. Understanding XSS attack vectors, context-appropriate encoding, and defense-in-depth enables building secure applications. XSS prevention is fundamental to web security.`;
+- **Stored XSS**: malicious content is saved and later shown to users
+- **Reflected XSS**: input is immediately reflected in a response
+- **DOM XSS**: unsafe client-side code writes attacker-controlled data into the DOM
+
+---
+
+## 2) The core rule: context matters
+
+Defense depends on where data is inserted:
+- HTML text vs attributes vs URLs vs inline JS
+- “sanitize input” is not enough by itself — you must **encode output** for the context
+
+---
+
+## 3) Practical defenses
+
+- Use frameworks that auto-escape HTML (React, etc.).
+- Avoid using \`innerHTML\` / \`dangerouslySetInnerHTML\` with untrusted data.
+- For rich text, sanitize with a well-maintained HTML sanitizer.
+- Add a strong Content Security Policy (CSP) to reduce impact.
+
+Example: prefer \`textContent\` over \`innerHTML\`:
+
+\`\`\`js
+el.textContent = userInput; // safer
+// el.innerHTML = userInput; // unsafe if userInput contains HTML
+\`\`\`
+
+---
+
+## 4) CSP (defense-in-depth)
+
+\`\`\`http
+Content-Security-Policy: default-src 'self'; script-src 'self'
+\`\`\`
+
+---
+
+## 5) Practice
+
+1) Find three places your app renders user-provided strings and classify their context.
+2) Explain why \`HttpOnly\` cookies help against one XSS impact but not all.
+3) Propose a CSP for a basic SPA and list what might break.
+`;
     }
     if (lowerTitle.includes('sql injection')) {
       return `# ${title}
 
-SQL injection injects malicious SQL code through application inputs, manipulating database queries. SQL injection can read sensitive data, modify or delete records, or execute admin operations. SQL injection remains a critical security vulnerability despite being well-understood and preventable.
+SQL injection happens when user-controlled input becomes part of the SQL **syntax** instead of being treated as data. Attackers can change the meaning of a query if you build SQL by concatenating strings.
 
-SQL injection occurs when applications concatenate user input directly into SQL queries. Attackers craft input breaking out of intended query structure. Classic example: username: admin'-- bypasses password checks. More sophisticated attacks extract data, enumerate schema, or achieve remote code execution.
+---
 
-Prevention requires parameterized queries (prepared statements) separating SQL code from data. ORMs like Prisma use parameterized queries by default. Input validation provides defense-in-depth but isn't sufficient alone. Principle of least privilege limits damage from successful attacks. Escaping is context-dependent and error-prone.
+## 1) The vulnerable pattern
 
-Professional development exclusively uses parameterized queries for database access. Understanding SQL injection vectors, testing applications for vulnerabilities, and following secure coding practices prevents this critical vulnerability. SQL injection prevention is non-negotiable for any application with database access.`;
+- take raw input (query params, forms)
+- concatenate it into a SQL string
+- execute the combined string
+
+---
+
+## 2) The fix: parameterized queries (prepared statements)
+
+Parameterized queries send SQL and data separately, so input cannot “escape” into SQL syntax.
+
+\`\`\`js
+// BAD: string concatenation
+await db.query("SELECT * FROM users WHERE email = '" + email + "'");
+
+// GOOD: parameterized query (placeholder syntax varies by DB)
+await db.query('SELECT * FROM users WHERE email = ?', [email]);
+\`\`\`
+
+---
+
+## 3) ORM notes (Prisma, etc.)
+
+- ORM query builders typically parameterize for you.
+- risk returns when you use raw SQL utilities or build dynamic query strings.
+
+---
+
+## 4) Defense-in-depth
+
+- validate inputs (types, length, formats) — helpful but not sufficient alone
+- least-privilege DB users (read-only where possible)
+- monitor and alert on unusual query patterns
+
+---
+
+## 5) Practice
+
+1) Identify one place you build a query dynamically and refactor it to parameterized form.
+2) Explain why “escaping strings” is a fragile defense.
+3) Propose DB permissions for a web app (app user vs migrations user).
+`;
     }
     if (lowerTitle.includes('jwt')) {
       return `# ${title}
 
-JWT (JSON Web Token) is a compact, self-contained token format for transmitting information between parties. JWTs commonly implement authentication - servers issue JWTs after login, clients include JWTs in subsequent requests. Understanding JWTs is essential for modern API authentication.
+JWTs (JSON Web Tokens) are a compact way to carry **claims** (like a user id) that are **signed** so the server can verify integrity. They’re common for stateless auth — but they come with tradeoffs.
 
-JWTs consist of three parts: header (algorithm and type), payload (claims like user ID, expiration), and signature (verifies integrity). JWTs are base64-encoded, dot-separated strings. Signature ensures JWTs haven't been tampered with. JWTs are stateless - servers verify signatures without database lookups.
+---
 
-JWT advantages include statelessness, scalability, and cross-domain authentication. However, JWTs can't be invalidated before expiration (use short expiration and refresh tokens). Storing JWTs in localStorage risks XSS attacks; httpOnly cookies are more secure. JWT payload is not encrypted - don't store sensitive data.
+## 1) What a JWT is (and is not)
 
-Professional applications use JWTs for API authentication, especially microservices and mobile apps. Understanding JWT security considerations, refresh token strategies, and secure storage enables building secure authentication systems. While popular, JWTs aren't always the best choice - consider alternatives like sessions.`;
+- A JWT is typically: \`header.payload.signature\`
+- It is **signed**, not automatically encrypted
+- Anyone who has the token can base64-decode the payload — don’t put secrets in it
+
+---
+
+## 2) Common claims
+
+- \`sub\`: subject (user id)
+- \`exp\`: expiration time
+- \`iat\`: issued at
+- \`iss\` / \`aud\`: issuer / audience (important in multi-service setups)
+
+---
+
+## 3) Access vs refresh tokens
+
+- **Access token**: short-lived (minutes)
+- **Refresh token**: longer-lived, used to obtain new access tokens
+  - usually stored more securely and rotated
+
+---
+
+## 4) Storage tradeoffs
+
+- \`Authorization: Bearer <token>\` (not auto-sent cross-site; less CSRF risk)
+- httpOnly cookies (better against token theft via JS, but consider CSRF protections)
+
+No option is “free” — choose based on your threat model.
+
+---
+
+## 5) Example (issue + verify)
+
+\`\`\`js
+import jwt from 'jsonwebtoken';
+
+const token = jwt.sign({ sub: userId }, process.env.JWT_SECRET, { expiresIn: '15m' });
+const payload = jwt.verify(token, process.env.JWT_SECRET);
+\`\`\`
+
+---
+
+## 6) Verification checklist
+
+- validate signature and algorithm (don’t accept unexpected algs)
+- enforce \`exp\` (and consider clock skew)
+- validate \`iss\` and \`aud\` when applicable
+- rotate signing keys and plan for key rollover
+
+---
+
+## 7) Practice
+
+1) Decide token lifetimes for: access token, refresh token.
+2) Explain how you would “log out everywhere” with JWTs.
+3) List 3 things your server must validate beyond signature.
+`;
     }
     if (lowerTitle.includes('oauth')) {
       return `# ${title}
 
-OAuth 2.0 is an authorization framework enabling third-party applications to access user resources without exposing credentials. OAuth powers "Login with Google/GitHub/Facebook" buttons. Understanding OAuth is valuable for implementing social login and building APIs requiring third-party access.
+OAuth 2.0 is an **authorization** framework: it lets an app get limited access to a user’s resources without learning the user’s password. “Login with Google” usually uses OAuth + OpenID Connect (OIDC) for authentication.
 
-OAuth roles include Resource Owner (user), Client (third-party app), Resource Server (API), and Authorization Server (issues tokens). OAuth flows vary by client type. Authorization Code flow suits server apps, Implicit flow (deprecated) suited browser apps, Client Credentials flow suits machine-to-machine, and PKCE extension secures mobile/SPA apps.
+---
 
-OAuth uses access tokens (short-lived, access resources) and refresh tokens (long-lived, obtain new access tokens). Scopes limit what resources tokens can access. OAuth separates authentication (who you are) from authorization (what you can access). OpenID Connect adds authentication layer on OAuth 2.0.
+## 1) Roles (who’s who)
 
-Professional applications implement OAuth for social login, API integrations, and third-party access. Understanding OAuth flows, security considerations (state parameter prevents CSRF), and token management enables building secure authorization systems. OAuth is standard for authorization in modern web applications.`;
+- **Resource Owner**: the user
+- **Client**: your app
+- **Authorization Server**: the provider (Google/GitHub)
+- **Resource Server**: the API holding user data
+
+---
+
+## 2) The recommended flow (Authorization Code + PKCE)
+
+High-level steps:
+1) client redirects user to the provider with \`state\` + PKCE challenge
+2) provider authenticates user and redirects back with a short-lived code
+3) client exchanges the code + PKCE verifier for tokens
+
+PKCE protects public clients (SPAs/mobile) from code interception.
+
+---
+
+## 3) Tokens + scopes
+
+- **Access token**: short-lived; sent to the resource server
+- **Refresh token**: longer-lived; used to get new access tokens
+- **Scopes**: what the token is allowed to do (least privilege)
+
+---
+
+## 4) Common security requirements
+
+- validate exact redirect URIs (avoid wildcards)
+- always use \`state\` to prevent CSRF in the auth redirect flow
+- store tokens securely (avoid exposing refresh tokens to the browser if possible)
+- treat provider tokens as sensitive secrets
+
+---
+
+## 5) OAuth vs OIDC
+
+- OAuth: authorization (access to APIs)
+- OIDC: authentication (who the user is) via an \`id_token\`
+
+---
+
+## 6) Practice
+
+1) Explain why PKCE matters for SPAs and mobile apps.
+2) Design scopes for a “read profile + upload file” integration.
+3) List 3 mistakes that commonly lead to account takeover in OAuth integrations.
+`;
+    }
+
+    if (lowerTitle.includes('password hashing') || lowerTitle.includes('hashing')) {
+      return `# ${title}
+
+Password hashing is the practice of storing **a one-way derived value** instead of the user’s real password. If your database leaks, properly hashed passwords dramatically reduce the damage. Storing plaintext passwords is never acceptable.
+
+---
+
+## 1) Hashing vs encryption
+
+- **Hashing**: one-way. You can verify a password, but you cannot recover it.
+- **Encryption**: reversible. If keys leak, passwords leak.
+
+Passwords should be hashed, not encrypted.
+
+---
+
+## 2) Use adaptive, slow password hash functions
+
+Recommended algorithms:
+- **bcrypt**
+- **scrypt**
+- **Argon2** (modern and widely recommended)
+
+Avoid fast hashes like SHA-256 for passwords. Fast hashes are easy to brute force.
+
+---
+
+## 3) Salt, pepper, and work factor
+
+- **Salt**: a unique random value per password (prevents rainbow tables).
+- **Work factor**: increases cost per guess (slows brute force).
+- **Pepper** (optional): a server-side secret added to hashing, stored separately from the DB.
+
+---
+
+## 4) Practical Node.js example (bcrypt)
+
+\`\`\`ts
+import bcrypt from 'bcrypt';
+
+const hash = await bcrypt.hash(password, 12);
+const ok = await bcrypt.compare(passwordAttempt, hash);
+\`\`\`
+
+---
+
+## 5) Related security controls
+
+- Rate limit login attempts.
+- Use MFA for sensitive accounts.
+- Use secure password reset flows (single-use tokens + expiry).
+- Never log passwords.
+`;
+    }
+
+    if (lowerTitle.includes('secrets management') || lowerTitle.includes('secrets')) {
+      return `# ${title}
+
+Secrets management is how you store and use sensitive values safely: API keys, database credentials, JWT signing keys, OAuth client secrets, and encryption keys.
+
+---
+
+## 1) What counts as a secret
+
+- Database passwords and connection strings
+- Third-party API keys (Stripe, email providers)
+- JWT signing keys
+- OAuth client secrets
+
+---
+
+## 2) Common mistakes
+
+- Committing secrets to Git
+- Putting secrets in frontend code (anything shipped to the browser is public)
+- Logging secrets in server logs
+- Reusing the same secret across environments
+
+---
+
+## 3) Practical approaches
+
+- Local development: \`.env\` files (never commit them)
+- Production: use a secret manager (AWS Secrets Manager, GCP Secret Manager, Vault) or platform secrets (Vercel/Render/Railway)
+- Inject secrets via environment variables at runtime
+
+---
+
+## 4) Operational best practices
+
+- Rotate secrets regularly (and immediately on suspected compromise)
+- Use least-privilege IAM/service accounts
+- Keep separate secrets per environment (dev/staging/prod)
+- Audit secret access where possible
+`;
     }
     return null; // Return null if no specific content found for Security
   }
@@ -17919,57 +25358,325 @@ Professional applications implement OAuth for social login, API integrations, an
     if (lowerTitle.includes('unit test')) {
       return `# ${title}
 
-Unit testing verifies individual functions or components in isolation. Unit tests are fast, focused, and numerous. They catch bugs early, document code behavior, and enable confident refactoring. Understanding unit testing is fundamental to professional software development.
+Unit tests verify **small units of code in isolation**: a function, a reducer, a utility module, or a component without real network/DB calls. They should be fast, deterministic, and easy to understand.
 
-Unit tests follow Arrange-Act-Assert pattern: set up data, execute code, verify results. Tests should be independent, repeatable, and fast. Mocking isolates units from dependencies like databases or APIs. Test coverage measures code exercised by tests but high coverage doesn't guarantee quality.
+---
 
-Popular JavaScript testing frameworks include Jest (React standard), Mocha, and Vitest. Test frameworks provide assertions, mocking, and test runners. Good unit tests are readable, focus on behavior not implementation, and test edge cases. TDD (Test-Driven Development) writes tests before code.
+## 1) What to unit test (and what not to)
 
-Professional development includes unit testing as standard practice. Tests prevent regressions, document expected behavior, and improve design by forcing testable code. Understanding unit testing patterns, mocking, and test organization enables building reliable, maintainable software with confidence.`;
+Good targets:
+- pure functions (input → output)
+- edge cases and error paths
+- small modules with clear dependencies
+
+Avoid brittle tests that assert on implementation details (private state, exact call order) unless you have a strong reason.
+
+---
+
+## 2) Arrange – Act – Assert (AAA)
+
+\`\`\`ts
+import { clamp } from './clamp';
+
+test('clamp caps above max', () => {
+  // arrange
+  const max = 10;
+
+  // act
+  const result = clamp(99, 0, max);
+
+  // assert
+  expect(result).toBe(10);
+});
+\`\`\`
+
+---
+
+## 3) Mocks: mock the boundary
+
+Mock external boundaries (network, DB, time) so your tests stay deterministic.
+
+- good mocks: HTTP calls, email providers, Stripe, timers
+- avoid mocking: your own pure logic (just test it)
+
+---
+
+## 4) Test pyramid (practical rule)
+
+- many unit tests
+- fewer integration tests
+- few end-to-end tests
+
+---
+
+## 5) Practice
+
+1) Add table-driven tests for edge cases.
+2) Add a test for a failure path (throws / returns null).
+3) Run with coverage and identify which code is truly untested.
+`;
     }
     if (lowerTitle.includes('integration test')) {
       return `# ${title}
 
-Integration testing verifies multiple components working together. Integration tests catch issues at component boundaries and ensure proper integration. They're slower than unit tests but faster than end-to-end tests. Understanding integration testing balances different testing levels.
+Integration tests verify **multiple parts working together**: routing + validation + database, or UI + API + state. They’re slower than unit tests but catch “boundary bugs” unit tests often miss.
 
-Integration tests might test API endpoint with real database, multiple components interacting, or service integrations. Tests verify components communicate correctly, data flows properly, and business logic spans components correctly. Integration tests use test databases, mock external services, and clean up state between tests.
+---
 
-Integration testing strategies include bottom-up (test lower-level integrations first), top-down (test high-level flows first), and big bang (test everything together). Balance determines how many integration tests - too few miss integration issues, too many slow development.
+## 1) Good integration targets
 
-Professional development includes integration tests for critical paths and complex interactions. Integration tests provide confidence that components work together correctly. Understanding testing pyramid (many unit tests, fewer integration tests, few E2E tests) optimizes test suite effectiveness and speed.`;
+- an Express route with real middleware
+- a Prisma repository hitting a **test database**
+- auth + protected route behavior
+- file uploads, background jobs, queues (with fakes/stubs)
+
+---
+
+## 2) Example: API integration test (Express + Supertest)
+
+\`\`\`ts
+import request from 'supertest';
+import { app } from '../app';
+
+test('GET /health returns 200', async () => {
+  const res = await request(app).get('/health');
+  expect(res.status).toBe(200);
+});
+\`\`\`
+
+---
+
+## 3) Database strategy
+
+- use a separate test database
+- run migrations in CI
+- cleanup between tests (transaction rollback or truncation)
+- keep tests independent (order should not matter)
+
+---
+
+## 4) Keep them deterministic
+
+- stub external services (Stripe/email)
+- freeze time when needed
+- avoid random data without seeding
+
+---
+
+## 5) Practice
+
+1) Test a POST endpoint including validation errors.
+2) Add a test that requires authentication.
+3) Add a cleanup step so tests can run in any order.
+`;
     }
     if (lowerTitle.includes('e2e') || lowerTitle.includes('end-to-end')) {
       return `# ${title}
 
-End-to-end testing verifies complete user workflows in environments resembling production. E2E tests interact with applications like real users - clicking buttons, filling forms, navigating pages. E2E tests catch integration issues but are slowest and most brittle tests.
+End-to-end (E2E) tests verify a **real user workflow** through a running app in a real browser: navigate, click, type, and assert on the UI. They’re the highest confidence tests — and also the slowest and most brittle.
 
-E2E testing tools include Playwright, Cypress, and Selenium. These tools control real browsers, enabling realistic testing. E2E tests verify critical user journeys - signup, login, checkout. Tests should be stable, maintainable, and provide clear error messages when failing.
+---
 
-E2E test challenges include flakiness (intermittent failures), slow execution, and maintenance burden. Strategies for reliability include proper waits, stable selectors, test isolation, and parallel execution. E2E tests should focus on happy paths and critical flows, not exhaustive scenarios covered by unit tests.
+## 1) What E2E tests are best for
 
-Professional development uses E2E tests sparingly for critical business flows. E2E tests provide confidence that applications work end-to-end but shouldn't replace lower-level tests. Understanding E2E testing tradeoffs, best practices, and maintenance strategies enables effective use without overwhelming teams.`;
+- signup/login flows
+- checkout/payment flows
+- critical “happy path” journeys
+- cross-service integrations
+
+Avoid writing E2E tests for every edge case — unit/integration tests should cover most logic.
+
+---
+
+## 2) Example (Playwright)
+
+\`\`\`ts
+import { test, expect } from '@playwright/test';
+
+test('login works', async ({ page }) => {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill('a@example.com');
+  await page.getByLabel('Password').fill('secret');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/dashboard/);
+});
+\`\`\`
+
+---
+
+## 3) Make E2E reliable
+
+- prefer role/label selectors over CSS selectors
+- avoid manual sleeps; rely on built-in auto-waiting
+- keep test data stable (seed DB, use dedicated test accounts)
+- run in CI with consistent environment variables
+
+---
+
+## 4) Practice
+
+1) Write a test for “signup -> dashboard”.
+2) Add a test for a validation error state.
+3) Run tests in parallel and fix any flaky selectors.
+`;
     }
     if (lowerTitle.includes('jest')) {
       return `# ${title}
 
-Jest is a JavaScript testing framework created by Meta, widely used especially with React. Jest provides test runner, assertion library, mocking capabilities, and code coverage in one package. Zero-config operation and great developer experience make Jest popular for JavaScript testing.
+Jest is a batteries-included JavaScript testing framework: test runner + assertions + mocks + coverage. It’s very common in React and Node.js codebases.
 
-Jest features include snapshot testing (compare rendered output), parallel test execution, built-in code coverage, mocking (functions, modules, timers), and watch mode (reruns tests on changes). Jest uses describe blocks for grouping and test/it blocks for individual tests. Expect provides assertions.
+---
 
-Jest integrates seamlessly with React via react-testing-library. Snapshot tests capture component output, failing when output changes unexpectedly. Mocking isolates units from dependencies. Jest configuration handles different environments, transforms (TypeScript, JSX), and module resolution.
+## 1) Basic structure
 
-Professional React and Node.js projects commonly use Jest for testing. Understanding Jest features, best practices, and ecosystem enables comprehensive testing strategies. Jest's rich feature set, community support, and excellent documentation make it the standard choice for JavaScript testing.`;
+\`\`\`ts
+describe('sum', () => {
+  test('adds numbers', () => {
+    expect(1 + 2).toBe(3);
+  });
+});
+\`\`\`
+
+---
+
+## 2) Useful matchers
+
+- \`toBe\`, \`toEqual\`
+- \`toMatch\` (regex)
+- \`toContain\`
+- \`toThrow\`
+
+---
+
+## 3) Mocks and spies
+
+\`\`\`ts
+const fn = jest.fn();
+fn('a');
+
+expect(fn).toHaveBeenCalledWith('a');
+expect(fn).toHaveBeenCalledTimes(1);
+\`\`\`
+
+Mocking is best when it isolates a boundary (network/DB/time).
+
+---
+
+## 4) Setup/teardown
+
+- \`beforeEach\` / \`afterEach\` for resetting state
+- \`beforeAll\` / \`afterAll\` for expensive setup (like DB connections)
+
+---
+
+## 5) Coverage + watch
+
+- \`jest --watch\`
+- \`jest --coverage\`
+
+---
+
+## 6) Practice
+
+1) Write one test that uses a mock.
+2) Add tests for edge cases.
+3) Run coverage and remove dead/unreachable code.
+`;
     }
     if (lowerTitle.includes('playwright') || lowerTitle.includes('cypress')) {
       return `# ${title}
 
-Modern E2E testing frameworks like Playwright and Cypress revolutionized browser testing. Both provide reliable, developer-friendly APIs for testing web applications. Understanding these tools enables building comprehensive E2E test suites with better reliability than traditional Selenium tests.
+Playwright and Cypress are modern browser testing tools for E2E tests. Both are far more reliable and developer-friendly than older Selenium-style setups.
 
-Playwright supports multiple browsers (Chrome, Firefox, Safari) in one API, runs tests in parallel, and provides powerful automation features. Playwright emphasizes speed, reliability, and multi-browser testing. Auto-waiting, network interception, and context isolation improve test stability.
+---
 
-Cypress runs in browser, providing real-time reloads, time travel debugging, and excellent debugging experience. Cypress emphasizes developer experience but initially only supported Chrome. Cypress Cloud provides test recording and debugging. Both frameworks significantly reduce test flakiness compared to Selenium.
+## 1) Choosing between Playwright and Cypress
 
-Professional teams adopt Playwright or Cypress for E2E testing. Understanding each tool's strengths - Playwright for multi-browser, Cypress for developer experience - guides selection. Both represent modern E2E testing best practices with better reliability and developer experience than previous generation tools.`;
+- **Playwright**: great multi-browser support (Chromium/Firefox/WebKit), strong parallelism, great for CI
+- **Cypress**: amazing interactive debugging experience, great developer ergonomics
+
+Both can be used successfully — choose the one that best fits your team and CI needs.
+
+---
+
+## 2) Example (Playwright)
+
+\`\`\`ts
+import { test, expect } from '@playwright/test';
+
+test('homepage loads', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading')).toBeVisible();
+});
+\`\`\`
+
+---
+
+## 3) Example (Cypress)
+
+\`\`\`ts
+describe('homepage', () => {
+  it('loads', () => {
+    cy.visit('/');
+    cy.get('h1').should('be.visible');
+  });
+});
+\`\`\`
+
+---
+
+## 4) Best practices
+
+- use accessible selectors (role/label/text) when possible
+- seed stable test data
+- avoid fixed sleeps; wait on UI state or network
+- run tests in parallel in CI for speed
+
+---
+
+## 5) Practice
+
+1) Write a login E2E test.
+2) Add one test that covers a validation error.
+3) Make the suite stable in CI (no flakes).
+`;
+    }
+
+    if (lowerTitle.includes('supertest')) {
+      return `# ${title}
+
+Supertest is a popular Node.js library for testing HTTP APIs (especially Express apps). It lets you make requests against your app and assert on status codes, headers, and response bodies — often without needing to start a real network server.
+
+---
+
+## 1) What Supertest is good for
+
+- API endpoint integration tests
+- Authentication flows (login -> access protected route)
+- Validating error responses and status codes
+- Testing middleware behavior (auth, rate limits, validation)
+
+---
+
+## 2) Typical pattern (Express)
+
+\`\`\`ts
+import request from 'supertest';
+import { app } from '../app';
+
+test('GET /health returns 200', async () => {
+  await request(app).get('/health').expect(200);
+});
+\`\`\`
+
+---
+
+## 3) Production-grade advice
+
+- Use a separate test database (or transactions + cleanup) for integration tests.
+- Keep tests deterministic (no reliance on real external APIs).
+- Assert on the contract: status code, shape of JSON, and key headers.
+`;
     }
     return null; // Return null if no specific content found for Testing
   }
@@ -17979,46 +25686,303 @@ Professional teams adopt Playwright or Cypress for E2E testing. Understanding ea
     if (lowerTitle.includes('web vitals')) {
       return `# ${title}
 
-Core Web Vitals are Google's metrics for measuring user experience: Largest Contentful Paint (loading), First Input Delay (interactivity), and Cumulative Layout Shift (visual stability). These metrics affect SEO rankings and user perception. Understanding Web Vitals guides performance optimization priorities.
+Web Vitals are performance metrics that quantify user experience. They help you prioritize fixes that actually improve perceived speed and responsiveness.
 
-LCP measures when main content loads (goal: 2.5s or less). FID measures response to first interaction (goal: 100ms or less). CLS measures unexpected layout shifts (goal: 0.1 or less). Additional metrics include FCP (First Contentful Paint) and TTFB (Time To First Byte).
+---
 
-Improving LCP involves optimizing images, reducing render-blocking resources, and server response times. Improving FID requires reducing JavaScript execution time and code splitting. Improving CLS needs size attributes on images, avoiding injecting content above, and using CSS transitions.
+## 1) Core Web Vitals (high level)
 
-Professional development monitors Web Vitals using Lighthouse, PageSpeed Insights, and real user monitoring. Understanding what metrics measure and how to improve them enables building fast, delightful user experiences that rank well in search. Web performance directly impacts business metrics.`;
+Core Web Vitals typically focus on:
+- **LCP** (Largest Contentful Paint): loading of the main content
+- **INP** (Interaction to Next Paint): responsiveness to user interactions
+- **CLS** (Cumulative Layout Shift): visual stability
+
+Additional useful metrics:
+- **TTFB** (Time To First Byte)
+- **FCP** (First Contentful Paint)
+
+---
+
+## 2) How to measure
+
+- **Lab tools**: Lighthouse, PageSpeed Insights (repeatable, good for debugging)
+- **Field/real users**: RUM, Chrome UX data (what users actually experience)
+
+Lab + field together gives the best picture.
+
+---
+
+## 3) How to improve (practical checklist)
+
+LCP improvements:
+- optimize images (sizes, formats)
+- reduce render-blocking CSS/JS
+- speed up server responses (caching, DB tuning)
+
+INP improvements:
+- reduce long JS tasks (split work, avoid heavy synchronous work)
+- code-split large features
+- defer non-critical JS
+
+CLS improvements:
+- set width/height (or aspect ratio) for images/media
+- reserve space for dynamic UI
+- avoid injecting content above existing content
+
+---
+
+## 4) Practice
+
+1) Run Lighthouse and write down the top 3 bottlenecks.
+2) Improve one LCP issue and re-measure.
+3) Fix one CLS issue by reserving layout space.
+`;
     }
     if (lowerTitle.includes('lazy loading')) {
       return `# ${title}
 
-Lazy loading defers loading resources until needed, improving initial page load. Images, JavaScript, and routes can be lazy loaded. Lazy loading is fundamental to performance optimization, especially for content-heavy sites. Understanding lazy loading enables faster initial loads and better resource utilization.
+Lazy loading defers loading non-critical resources until they’re needed. Done well, it improves initial load time and keeps apps responsive — especially on mobile.
 
-Image lazy loading uses native loading="lazy" attribute or Intersection Observer API. Browser loads images only when near viewport. Code splitting lazy loads JavaScript - React.lazy() and dynamic import() load components or modules on demand. Route-based code splitting loads only current route's code.
+---
 
-Lazy loading benefits include faster initial load, reduced bandwidth, and improved performance metrics. However, lazy loading can cause layout shift if not implemented carefully or delay content appearing. Placeholders, skeleton screens, and blur-up techniques improve perceived performance.
+## 1) What to lazy load
 
-Professional applications extensively use lazy loading for images, routes, and components. Understanding when and how to lazy load optimizes performance without harming user experience. Lazy loading combined with proper priorities and critical path optimization creates fast-loading applications.`;
+- images below the fold
+- heavy UI components (charts, editors)
+- routes/pages users may never visit
+- non-critical scripts (analytics)
+
+---
+
+## 2) Image lazy loading (native)
+
+\`\`\`html
+<img
+  src="/photos/city.jpg"
+  width="800"
+  height="600"
+  loading="lazy"
+  alt="City skyline"
+/>
+\`\`\`
+
+Tip: specify dimensions (or aspect ratio) to avoid layout shift (CLS).
+
+---
+
+## 3) Lazy load JavaScript (dynamic import)
+
+\`\`\`js
+async function openEditor() {
+  const mod = await import('./editor.js');
+  mod.open();
+}
+\`\`\`
+
+In React, \`React.lazy\` + \`Suspense\` is a common pattern for component-level lazy loading.
+
+---
+
+## 4) Pitfalls
+
+- too much lazy loading can make navigation feel “empty”
+- always provide a good loading/fallback UI (skeletons, placeholders)
+- don’t lazy load the most important content on the page
+
+---
+
+## 5) Practice
+
+1) Lazy load images below the fold.
+2) Lazy load one heavy component (charts/editor).
+3) Add a skeleton placeholder and verify CLS stays low.
+`;
     }
     if (lowerTitle.includes('code splitting')) {
       return `# ${title}
 
-Code splitting breaks JavaScript bundles into smaller chunks loaded on demand. Instead of loading entire application upfront, code splitting loads only necessary code initially, reducing initial load time. Understanding code splitting is crucial for optimizing large application performance.
+Code splitting breaks your JavaScript into smaller chunks that load on demand. The goal is to ship a **small initial bundle** (fast first load) while still enabling rich features later.
 
-Code splitting strategies include route-based (split per route), component-based (split heavy components), and vendor (separate third-party code). Webpack, Rollup, and Vite support code splitting via dynamic imports. Modern frameworks like Next.js automatically code split routes.
+---
 
-Code splitting benefits include smaller initial bundles, faster time to interactive, and efficient caching. Shared code moves to common chunks. Lazy loading components or routes loads their split chunks on demand. Prefetching and preloading hints optimize subsequent navigations.
+## 1) The main strategies
 
-Professional applications strategically code split to balance bundle sizes, number of requests, and caching. Understanding bundler behavior, chunk naming, and loading strategies optimizes performance. Analyzing bundle size, identifying large dependencies, and splitting strategically creates faster applications.`;
+- **Route-based**: split per page/route (many frameworks do this automatically)
+- **Component-based**: split heavy components (charts/editors)
+- **Vendor splitting**: separate large third-party libraries for better caching
+
+---
+
+## 2) Dynamic imports
+
+\`\`\`js
+async function openCharts() {
+  const mod = await import('./charts.js');
+  mod.render();
+}
+\`\`\`
+
+---
+
+## 3) React component splitting
+
+\`\`\`jsx
+const Charts = React.lazy(() => import('./Charts'));
+
+function Page() {
+  return (
+    <React.Suspense fallback={<div>Loading charts...</div>}>
+      <Charts />
+    </React.Suspense>
+  );
+}
+\`\`\`
+
+---
+
+## 4) Practical advice
+
+- measure bundle size before/after
+- don’t create too many tiny chunks
+- keep shared code in common chunks to avoid duplication
+
+---
+
+## 5) Practice
+
+1) Find your largest dependency and split it.
+2) Add a fallback UI and ensure it looks good.
+3) Re-measure Web Vitals before and after.
+`;
     }
     if (lowerTitle.includes('caching')) {
       return `# ${title}
 
-Performance optimization heavily relies on caching at multiple levels. Browser cache, service workers, CDN cache, and server cache all reduce latency and server load. Understanding caching strategies and cache headers enables building fast applications.
+Caching is one of the highest-impact performance techniques. The key is caching the **right things** at the **right layer** with safe invalidation rules.
 
-Cache-Control headers instruct caching behavior: max-age sets expiration, public allows CDN caching, private restricts to browser cache, no-cache requires revalidation. ETag and Last-Modified enable conditional requests. Immutable indicates resources never change, enabling aggressive caching.
+---
 
-Service workers enable offline functionality and advanced caching strategies. Cache-first serves cached content immediately, network-first fetches fresh content, and stale-while-revalidate balances speed and freshness. Versioned URLs enable long cache times without staleness concerns.
+## 1) Caching layers
 
-Professional applications optimize caching for static assets (long cache times with versioning), APIs (short cache times or no cache), and HTML (short cache or no cache). Understanding cache invalidation, versioning strategies, and HTTP caching enables maximizing performance benefits.`;
+- **Browser cache** (static assets)
+- **CDN/edge cache** (global speed)
+- **Server cache** (memory/Redis)
+- **Application-level cache** (computed results)
+
+---
+
+## 2) HTTP caching basics
+
+Important headers:
+- \`Cache-Control\` (freshness rules)
+- \`ETag\` / \`Last-Modified\` (revalidation)
+- \`Vary\` (different caches per header)
+
+Example (Express):
+
+\`\`\`js
+app.get('/api/public-feed', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.json({ ok: true });
+});
+\`\`\`
+
+---
+
+## 3) Cache invalidation (the hard part)
+
+- cache keys must include inputs that change the result
+- be careful with user-specific data (use \`private\` or \`no-store\`)
+- use versioned asset URLs for long-lived static caching
+
+---
+
+## 4) Practical patterns
+
+- cache static assets aggressively (hashed filenames)
+- cache public GET APIs briefly
+- don’t cache authenticated HTML unless you truly understand the risks
+
+---
+
+## 5) Practice
+
+1) Add caching headers to a public endpoint.
+2) Add a simple in-memory cache with TTL for a computed value.
+3) Identify a case where caching is unsafe (personalized data) and explain why.
+`;
+    }
+
+    if (lowerTitle.includes('database optimization')) {
+      return `# ${title}
+
+Database optimization is often the highest-impact backend performance work. The best approach is always: measure first, change one thing, measure again.
+
+---
+
+## 1) The common causes of slow databases
+
+- Missing or incorrect indexes
+- N+1 queries from ORM usage
+- Returning too many rows/columns (\`SELECT *\` on hot paths)
+- OFFSET pagination on large datasets
+- Long-running transactions and lock contention
+- Too many concurrent connections (no pooling)
+
+---
+
+## 2) A practical optimization checklist
+
+- Add the right indexes for WHERE + JOIN + ORDER BY patterns
+- Use EXPLAIN / query plans to confirm indexes are used
+- Use keyset pagination for large lists (avoid deep OFFSET)
+- Batch writes and avoid per-row loops
+- Keep transactions short and consistent
+- Add caching only when you understand freshness requirements
+
+---
+
+## 3) What to measure
+
+- p95/p99 latency for critical queries
+- slow query logs
+- DB CPU, memory, disk I/O
+- lock waits and deadlocks
+`;
+    }
+
+    if (lowerTitle.includes('node profiling')) {
+      return `# ${title}
+
+Node profiling is how you find performance bottlenecks in your Node.js runtime: CPU hot paths, memory leaks, slow event-loop behavior, and inefficient code.
+
+---
+
+## 1) What to profile
+
+- **CPU**: which functions consume the most time
+- **Memory**: leaks, large allocations, GC pressure
+- **Event loop**: blocking work that slows down requests
+
+---
+
+## 2) Useful tools and techniques
+
+- Chrome DevTools profiler (via \`--inspect\`)
+- Heap snapshots for leak hunting
+- Flame graphs to find hot functions
+- Load testing + profiling together (profiling idle apps is misleading)
+
+---
+
+## 3) Common fixes discovered by profiling
+
+- Move CPU-heavy work off the request path (queue/background)
+- Replace inefficient loops and regexes
+- Add caching for expensive repeated work
+- Stream large responses instead of buffering in memory
+- Avoid synchronous file/crypto operations in hot paths
+`;
     }
     return null; // Return null if no specific content found for Performance
   }
@@ -18028,85 +25992,569 @@ Professional applications optimize caching for static assets (long cache times w
     if (lowerTitle.includes('react native')) {
       return `# ${title}
 
-React Native enables building native mobile apps using React and JavaScript. React Native renders native components rather than web views, providing native performance and feel. Understanding React Native enables building iOS and Android apps with shared codebase and React knowledge.
+React Native lets you build iOS and Android apps using React. Instead of rendering HTML, it renders **native UI components**, so apps can feel close to native while sharing a large portion of code.
 
-React Native components map to native components - View becomes iOS UIView or Android ViewGroup. React Native includes platform-specific code, allowing customization per platform. Metro bundler packages JavaScript. Hot reloading speeds development. Native modules access platform capabilities unavailable in JavaScript.
+---
 
-React Native benefits include code sharing across platforms, React skills reuse, hot reloading, and JavaScript development speed. Challenges include platform differences, native module dependencies, and slightly lower performance than pure native. Expo simplifies React Native development with managed workflow.
+## 1) Mental model
 
-Professional mobile development increasingly uses React Native for cross-platform apps. Companies like Facebook, Instagram, and Airbnb use React Native. Understanding React Native architecture, platform differences, and performance optimization enables building quality mobile applications efficiently.`;
+- React renders a component tree.
+- React Native maps components like \`View\` / \`Text\` to native views.
+- JavaScript runs in a JS runtime, and native modules bridge to platform APIs.
+
+---
+
+## 2) When React Native is a good fit
+
+- one team shipping iOS + Android from one codebase
+- apps with mostly standard UI and moderate performance requirements
+- teams already strong in React
+
+---
+
+## 3) Where it can get hard
+
+- complex animations / real-time graphics
+- platform-specific behaviors and edge cases
+- dependency management for native modules
+
+---
+
+## 4) Performance basics
+
+- avoid heavy CPU work on the JS thread during interactions
+- keep list rendering efficient (use \`FlatList\` and virtualization)
+- memoize expensive components and avoid passing unstable props
+
+---
+
+## 5) Debugging workflow
+
+- reproduce on device (simulators can hide real perf issues)
+- use React DevTools / Flipper for state and network inspection
+- profile before guessing
+
+---
+
+## 6) Practice
+
+1) Build a 3-screen app and add navigation.
+2) Render a list of 1,000 items and optimize scrolling performance.
+3) Add one native capability (camera or location) and handle permissions.
+`;
     }
     if (lowerTitle.includes('expo')) {
       return `# ${title}
 
-Expo is a framework and platform for React Native, providing managed workflow eliminating native code compilation. Expo includes pre-built native modules, development tools, and build services. Expo dramatically simplifies React Native development, especially for web developers learning mobile.
+Expo is a toolkit around React Native that makes it easier to build, test, and ship apps. It provides a managed workflow, a large set of prebuilt native modules, and build services (EAS).
 
-Expo provides managed and bare workflows. Managed workflow handles native code entirely - developers write only JavaScript. Bare workflow ejects to standard React Native for full native control. EAS (Expo Application Services) handles builds, updates, and app store submissions.
+---
 
-Expo includes pre-built modules for camera, location, notifications, file system, and more. Expo Go app enables testing on physical devices without building. OTA (Over The Air) updates push JavaScript changes without app store submissions. Expo CLI provides development server and commands.
+## 1) Managed vs bare workflow
 
-Professional developers start with Expo for rapid development, ejecting to bare workflow if needing custom native code. Understanding Expo limitations, managed vs bare workflows, and EAS services enables making informed choices for mobile development. Expo has become the recommended way to start React Native projects.`;
+- **Managed**: you write JS/TS; Expo handles native projects for you
+- **Bare**: you own the iOS/Android native projects (more control, more complexity)
+
+Most teams should start managed and “eject” only when necessary.
+
+---
+
+## 2) Expo Go and fast iteration
+
+- Expo Go lets you run your app on a real device quickly.
+- Some native integrations require a custom dev client or EAS build.
+
+---
+
+## 3) EAS: builds and updates
+
+- EAS Build produces signed builds for app stores.
+- OTA (over-the-air) updates can ship JS changes quickly.
+  - follow store rules and be careful with breaking native changes
+
+---
+
+## 4) Common modules you’ll use
+
+- camera, location, notifications
+- file system, secure storage
+- image picker
+
+---
+
+## 5) When you might need bare/custom dev client
+
+- you need a native module not supported by managed Expo
+- you need custom native configuration beyond Expo config plugins
+
+---
+
+## 6) Practice
+
+1) Create an Expo app and run it on a physical device.
+2) Set up EAS Build and generate a test build.
+3) Add camera permissions and implement a simple “take photo” screen.
+`;
+    }
+
+    if (lowerTitle.includes('navigation')) {
+      return `# ${title}
+
+Navigation is one of the core problems in mobile apps: moving between screens while keeping history, state, and deep links working correctly. In React Native, the most common solution is React Navigation.
+
+---
+
+## 1) Common navigation patterns
+
+- **Stack navigation**: push/pop screens (typical app flows)
+- **Tab navigation**: top-level sections (Home, Search, Profile)
+- **Drawer navigation**: side menu (less common in modern apps)
+
+Apps often combine these (tabs with nested stacks).
+
+---
+
+## 2) Deep linking and routing
+
+- Deep links open a specific screen from a URL.
+- Your app needs a mapping from routes to screens.
+- Handle authentication: deep link to a protected route should redirect to login and then continue.
+
+---
+
+## 3) UX and performance considerations
+
+- Avoid huge navigation stacks by resetting when flows finish.
+- Lazy-load heavy screens.
+- Keep screen params minimal; fetch data using IDs rather than passing large objects.
+`;
+    }
+
+    if (lowerTitle.includes('state management')) {
+      return `# ${title}
+
+State management is how you store and update data over time: UI state, server data, authentication, and cached results. In mobile apps, poor state management can cause bugs, performance issues, and hard-to-debug behavior.
+
+---
+
+## 1) Types of state
+
+- **Local UI state**: input values, toggles (useState)
+- **Derived state**: computed from other state (avoid duplicating)
+- **Global app state**: auth, theme, onboarding
+- **Server state**: data fetched from APIs (should be cached and refetched)
+
+---
+
+## 2) Common approaches in React Native
+
+- Built-in: \`useState\`, \`useReducer\`, Context
+- Libraries: Redux Toolkit, Zustand, Jotai, MobX
+- Server-state libraries: React Query / TanStack Query
+
+---
+
+## 3) Practical guidance
+
+- Keep state close to where it’s used.
+- Prefer a server-state library for API data (caching, retries, background refetch).
+- Avoid storing large objects globally; store IDs and normalize.
+- Consider persistence (AsyncStorage/SecureStore) for auth and offline support.
+`;
+    }
+
+    if (lowerTitle.includes('native apis')) {
+      return `# ${title}
+
+Native APIs are device capabilities: camera, location, notifications, file system, contacts, sensors, and more. React Native apps access these via libraries, and Expo provides many of them out of the box.
+
+---
+
+## 1) Typical native features
+
+- Camera + photo library
+- Geolocation
+- Push notifications
+- Background tasks
+- File downloads/uploads
+
+---
+
+## 2) Permissions and privacy
+
+- Always request the minimum permissions required.
+- Explain why you need a permission (better user trust).
+- Handle denied permissions gracefully.
+
+---
+
+## 3) Expo modules vs custom native modules
+
+- Expo modules cover many common needs with a consistent API.
+- If you need something unsupported, you may need a custom native module (bare workflow).
+`;
+    }
+
+    if (lowerTitle.includes('publishing')) {
+      return `# ${title}
+
+Publishing a mobile app is a workflow: signing, building, releasing, monitoring, and iterating. It’s part engineering and part operational discipline.
+
+---
+
+## 1) The release pipeline
+
+- Increment version numbers (build number + marketing version)
+- Generate signed builds
+- Upload to App Store / Play Store
+- Roll out gradually (staged rollout)
+
+---
+
+## 2) Common publishing requirements
+
+- App icons, splash screens, screenshots
+- Privacy policies and data usage disclosures
+- Crash reporting and analytics
+
+---
+
+## 3) Expo EAS and OTA updates
+
+- EAS Build simplifies native builds.
+- OTA updates can ship JS changes faster, but you must follow store policies.
+
+---
+
+## 4) Production best practices
+
+- Monitor crashes and performance (Sentry, Firebase Crashlytics)
+- Use feature flags for safe rollouts
+- Keep release notes and a rollback plan
+`;
     }
     return null; // Return null if no specific content found for Mobile
   }
 
   // Professional Tools Topics
   if (category === 'Professional Tools') {
-    if (lowerTitle.includes('git')) {
+    if (lowerTitle === 'git') {
       return `# ${title}
 
-Git is the distributed version control system used by nearly all developers. Git tracks code changes, enables collaboration, and provides history enabling reverting mistakes. Understanding Git is essential for professional development. Every developer needs Git proficiency.
+Git is the standard version control system for professional software development. It lets you track changes, collaborate safely, and revert mistakes.
 
-Core Git concepts include commits (snapshots of changes), branches (parallel development lines), and merges (combining branches). Common commands include git add (stage changes), git commit (save changes), git push (upload to remote), git pull (download from remote), and git merge (combine branches).
+---
 
-Git workflows include feature branches (develop features in separate branches), Git Flow (structured branching model), and trunk-based development (frequent commits to main branch). Pull requests enable code review before merging. Understanding branching, merging, and conflict resolution enables effective collaboration.
+## 1) Core concepts
 
-Professional development requires Git mastery. Understanding Git internals, advanced commands (rebase, cherry-pick, bisect), and best practices (atomic commits, meaningful messages, frequent commits) enables effective version control. Git is fundamental to modern software development workflows.`;
+- Commit: a snapshot of changes
+- Branch: an independent line of work
+- Merge: combine branches
+- Rebase: replay commits on top of another base
+
+---
+
+## 2) Commands you should be comfortable with
+
+\`\`\`bash
+git status
+git diff
+git add .
+git commit -m "feat: add login"
+git log --oneline --graph --decorate
+git switch -c feature/my-change
+git pull
+git push -u origin feature/my-change
+\`\`\`
+
+---
+
+## 3) Best practices
+
+- Make small, meaningful commits.
+- Write clear commit messages.
+- Avoid force-pushing shared branches.
+- Use pull requests for review and CI.
+`;
     }
-    if (lowerTitle.includes('rest api') || lowerTitle.includes('restful')) {
+
+    if (lowerTitle === 'github') {
       return `# ${title}
 
-REST (Representational State Transfer) APIs are the dominant web service architecture. RESTful principles enable building scalable, maintainable APIs consumed by various clients. Understanding REST is essential for backend development, frontend API integration, and designing API contracts.
+GitHub is a platform for hosting Git repositories and collaborating as a team. It adds workflows around code review, CI/CD, issue tracking, and releases.
 
-REST principles include statelessness, resource-based URLs, standard HTTP methods, and meaningful status codes. Resources are nouns (/users, /products), methods are verbs (GET retrieve, POST create, PUT/PATCH update, DELETE remove). JSON is standard data format. Status codes communicate results (200 OK, 201 Created, 404 Not Found, 500 Server Error).
+---
 
-REST best practices include versioning (v1, v2 in URLs), pagination for large collections, filtering and sorting, consistent error responses, and proper authentication. HATEOAS (Hypermedia as Engine of Application State) provides links for related resources. Caching and idempotency improve reliability.
+## 1) Pull request workflow
 
-Professional API development follows REST principles for predictability and maintainability. Understanding Richardson Maturity Model, HTTP semantics, and API design patterns enables building intuitive, developer-friendly APIs. Well-designed REST APIs accelerate frontend development and enable diverse client integrations.`;
+- Create a feature branch
+- Open a PR
+- Run automated checks (lint/tests)
+- Request reviews
+- Merge via squash/merge/rebase strategy
+
+---
+
+## 2) Team quality controls
+
+- Branch protection rules (require reviews + passing CI)
+- CODEOWNERS for ownership boundaries
+- Required status checks
+
+---
+
+## 3) Useful GitHub features
+
+- Issues and discussions
+- Projects (planning)
+- Releases and changelogs
+- GitHub Actions (automation)
+- Dependabot (dependency updates)
+`;
     }
-    if (lowerTitle.includes('graphql')) {
+
+    if (lowerTitle === 'rest apis') {
       return `# ${title}
 
-GraphQL is a query language for APIs enabling clients to request exactly needed data. GraphQL provides single endpoint with flexible queries, contrasting with REST's fixed endpoints. Understanding GraphQL enables building efficient, developer-friendly APIs especially for complex data requirements.
+REST APIs expose resources over HTTP using standard methods and status codes. Good REST design makes APIs predictable, debuggable, and friendly to clients.
 
-GraphQL schemas define types, queries (read data), mutations (modify data), and subscriptions (real-time updates). Clients send queries specifying desired fields. GraphQL resolvers fetch requested data. GraphQL returns only requested fields, avoiding over-fetching or under-fetching common with REST.
+---
 
-GraphQL benefits include precise data fetching, reduced requests, strong typing, and excellent introspection. Challenges include complexity, n+1 query problems, and caching difficulty. DataLoader solves n+1 problems. Apollo and Relay are popular GraphQL clients.
+## 1) REST basics
 
-Professional applications use GraphQL for complex data requirements, mobile apps needing efficient data fetching, or rapidly evolving APIs. Understanding GraphQL schema design, resolver patterns, and performance optimization enables building effective GraphQL APIs. GraphQL shines when data requirements vary significantly across clients.`;
+- Resources are nouns: \`/users\`, \`/orders\`
+- Methods are verbs: GET/POST/PATCH/DELETE
+- Use correct status codes: 200, 201, 400, 401, 403, 404, 409, 500
+
+---
+
+## 2) Practical API design rules
+
+- Consistent error format (message + code)
+- Pagination for lists
+- Filtering/sorting with query params
+- Idempotency where appropriate (PUT, retries)
+
+---
+
+## 3) What to practice
+
+- Design a Users API with pagination and validation.
+- Add auth and return correct status codes for failures.
+`;
     }
-    if (lowerTitle.includes('websocket')) {
+
+    if (lowerTitle === 'graphql apis') {
       return `# ${title}
 
-WebSockets enable bidirectional, real-time communication between clients and servers. Unlike HTTP's request-response pattern, WebSockets maintain open connections for both parties to send messages anytime. Understanding WebSockets enables building real-time features like chat, notifications, and live updates.
+GraphQL is an API style where clients request exactly the data they need. It’s powerful for complex UIs but requires careful resolver and performance design.
 
-WebSocket connection starts with HTTP handshake, upgrading to WebSocket protocol. Both client and server can send messages independently. WebSockets maintain persistent connections, avoiding repeated connection overhead. Socket.IO abstracts WebSockets, providing fallbacks and additional features.
+---
 
-WebSocket use cases include chat applications, real-time dashboards, collaborative editing, gaming, and notifications. WebSockets are more efficient than polling for frequently updating data. However, WebSockets require careful connection management, reconnection logic, and scalability considerations.
+## 1) Core building blocks
 
-Professional applications use WebSockets sparingly for truly real-time features. Understanding when WebSockets versus polling versus Server-Sent Events is appropriate guides architectural decisions. WebSocket implementations require considering authentication, message formats, connection limits, and horizontal scaling challenges.`;
+- Schema (types)
+- Queries (read)
+- Mutations (write)
+- Resolvers (how data is fetched)
+
+---
+
+## 2) Benefits and tradeoffs
+
+Benefits:
+- Avoid over-fetching and under-fetching
+- Strong typing and introspection
+
+Tradeoffs:
+- Resolver performance pitfalls (N+1)
+- Caching complexity
+- Authorization must be enforced per field/resolver
+
+---
+
+## 3) Practical guidance
+
+- Use batching (DataLoader) to avoid N+1.
+- Add query depth/complexity limits.
+- Treat authorization as a first-class concern.
+`;
     }
-    if (lowerTitle.includes('redis')) {
+
+    if (lowerTitle === 'swagger') {
       return `# ${title}
 
-Redis is an in-memory data structure store used as database, cache, and message broker. Redis provides extremely fast data access through RAM storage. Understanding Redis enables building high-performance caching layers, session stores, and real-time features.
+Swagger usually refers to the OpenAPI ecosystem: a standard way to describe your REST API contract. With OpenAPI, you can generate documentation, client SDKs, and automated tests.
 
-Redis supports various data structures: strings, hashes, lists, sets, sorted sets, and more. Redis commands manipulate these structures atomically. Pub/Sub enables messaging patterns. Redis persistence options include snapshots and append-only files. Redis Cluster provides horizontal scaling.
+---
 
-Common Redis use cases include caching database queries, session storage, rate limiting, real-time analytics, leaderboards, and message queues. Redis's speed and data structures make it versatile. However, Redis data lives in RAM, limiting dataset size and requiring careful capacity planning.
+## 1) Why OpenAPI matters
 
-Professional applications extensively use Redis for caching and real-time features. Understanding Redis data structures, persistence options, and scalability strategies enables leveraging Redis effectively. Redis is fundamental infrastructure for high-performance applications requiring fast data access or real-time capabilities.`;
+- Makes the API contract explicit
+- Enables interactive docs
+- Improves collaboration between frontend and backend
+
+---
+
+## 2) What an OpenAPI spec contains
+
+- Paths and methods
+- Request/response schemas
+- Auth schemes
+- Error responses
+
+---
+
+## 3) Practical workflow
+
+- Keep the spec close to the code.
+- Validate it in CI.
+- Publish docs for the current version.
+`;
     }
+
+    if (lowerTitle === 'postman') {
+      return `# ${title}
+
+Postman is a tool for exploring and testing APIs. It’s used for manual testing, sharing API collections with teams, and documenting workflows.
+
+---
+
+## 1) What to learn in Postman
+
+- Collections (organized requests)
+- Environments (dev/staging/prod variables)
+- Authorization helpers (Bearer tokens, OAuth)
+- Tests (assertions on responses)
+
+---
+
+## 2) Professional usage
+
+- Keep a shared collection for your API.
+- Document request bodies and expected responses.
+- Use environment variables instead of hardcoding URLs/tokens.
+`;
+    }
+
+    if (lowerTitle === 'stripe payments') {
+      return `# ${title}
+
+Stripe is a payments platform that helps you accept cards and manage billing. Integrating payments is not just API calls — it’s security, webhooks, idempotency, and accounting-friendly data modeling.
+
+---
+
+## 1) Core concepts
+
+- Products and prices
+- Checkout sessions (Stripe-hosted payment UI)
+- Payment intents (payment lifecycle)
+- Webhooks (Stripe -> your server events)
+
+---
+
+## 2) Security rules
+
+- Never handle raw card details on your server.
+- Keep Stripe secret keys on the backend only.
+- Verify webhook signatures.
+
+---
+
+## 3) Reliable payment engineering
+
+- Use idempotency for retries.
+- Treat webhooks as the source of truth for final payment state.
+- Store Stripe IDs (customerId, subscriptionId, paymentIntentId) in your DB.
+`;
+    }
+
+    if (lowerTitle === 'websocket communication') {
+      return `# ${title}
+
+WebSockets enable real-time, bi-directional communication between client and server. They’re commonly used for chat, live dashboards, multiplayer updates, and notifications.
+
+---
+
+## 1) Key considerations
+
+- Authentication at connection time
+- Message format (JSON with event types)
+- Reconnect logic on the client
+- Backpressure and rate limits
+
+---
+
+## 2) Scaling WebSockets
+
+- You may need sticky sessions or a shared pub/sub layer.
+- Redis Pub/Sub is a common building block for multi-instance broadcasting.
+
+---
+
+## 3) When to avoid WebSockets
+
+- If polling or Server-Sent Events solves the problem with less complexity.
+`;
+    }
+
+    if (lowerTitle === 'redis') {
+      return `# ${title}
+
+Redis is an in-memory data store used for caching, sessions, rate limiting, queues, and pub/sub. It’s fast, but you must design around memory limits and persistence needs.
+
+---
+
+## 1) Common Redis use cases
+
+- Cache hot DB reads with TTL
+- Store sessions
+- Rate limiting counters
+- Pub/Sub for realtime messaging
+
+---
+
+## 2) Practical guidance
+
+- Use TTLs to avoid unbounded memory growth.
+- Choose data structures intentionally (strings vs hashes vs sorted sets).
+- Monitor memory and eviction policies.
+`;
+    }
+
+    if (lowerTitle === 'cron jobs') {
+      return `# ${title}
+
+Cron jobs run scheduled tasks: cleanup jobs, report generation, reminders, or periodic syncing. Scheduling is easy; running jobs reliably in production is the real skill.
+
+---
+
+## 1) Typical cron use cases
+
+- Delete expired sessions
+- Send daily/weekly emails
+- Recompute analytics
+- Sync data from third-party APIs
+
+---
+
+## 2) Reliability pitfalls
+
+- Jobs running twice (retries, overlapping schedules)
+- Time zones and daylight savings
+- Partial failures and retries
+
+---
+
+## 3) Best practices
+
+- Make jobs idempotent.
+- Add logging and alerting.
+- Use a lock to prevent concurrent runs.
+- Prefer platform schedulers (Kubernetes CronJob, cloud schedulers) for production.
+`;
+    }
+
     return null; // Return null if no specific content found for Professional Tools
   }
 
@@ -18740,11 +27188,13 @@ async function seedFullStack() {
   console.log('🌱 Seeding Full Stack Development curriculum...');
 
   // 1) Upsert Full Stack Domain (non-destructive)
-  const domain = await prisma.learnDomain.upsert({
-    where: { slug: 'full-stack' },
-    update: { title: 'Full Stack Development' },
-    create: { slug: 'full-stack', title: 'Full Stack Development' }
-  });
+  const domain = await withPrismaRetry(() =>
+    prisma.learnDomain.upsert({
+      where: { slug: 'full-stack' },
+      update: { title: 'Full Stack Development' },
+      create: { slug: 'full-stack', title: 'Full Stack Development' }
+    })
+  );
 
   console.log('✅ Full Stack domain ready');
 
@@ -18774,25 +27224,31 @@ async function seedFullStack() {
     console.log(`📂 Processing Category: ${catData.title}`);
 
     const currentCategoryOrder = categoryOrder++;
-    const existingCategory = await prisma.learnCategory.findFirst({
-      where: {
-        domainId: domain.id,
-        title: catData.title
-      }
-    });
+    const existingCategory = await withPrismaRetry(() =>
+      prisma.learnCategory.findFirst({
+        where: {
+          domainId: domain.id,
+          title: catData.title
+        }
+      })
+    );
 
     const category = existingCategory
-      ? await prisma.learnCategory.update({
-          where: { id: existingCategory.id },
-          data: { order: currentCategoryOrder }
-        })
-      : await prisma.learnCategory.create({
-          data: {
-            title: catData.title,
-            order: currentCategoryOrder,
-            domainId: domain.id
-          }
-        });
+      ? await withPrismaRetry(() =>
+          prisma.learnCategory.update({
+            where: { id: existingCategory.id },
+            data: { order: currentCategoryOrder }
+          })
+        )
+      : await withPrismaRetry(() =>
+          prisma.learnCategory.create({
+            data: {
+              title: catData.title,
+              order: currentCategoryOrder,
+              domainId: domain.id
+            }
+          })
+        );
 
     let topicOrder = 1;
 
@@ -18802,22 +27258,24 @@ async function seedFullStack() {
 
       const currentTopicOrder = topicOrder++;
 
-      await prisma.learnTopic.upsert({
-        where: { slug },
-        update: {
-          title: t.title,
-          order: currentTopicOrder,
-          content,
-          categoryId: category.id
-        },
-        create: {
-          title: t.title,
-          slug,
-          order: currentTopicOrder,
-          content,
-          categoryId: category.id
-        }
-      });
+      await withPrismaRetry(() =>
+        prisma.learnTopic.upsert({
+          where: { slug },
+          update: {
+            title: t.title,
+            order: currentTopicOrder,
+            content,
+            categoryId: category.id
+          },
+          create: {
+            title: t.title,
+            slug,
+            order: currentTopicOrder,
+            content,
+            categoryId: category.id
+          }
+        })
+      );
     }
   }
 

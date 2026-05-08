@@ -1,3 +1,6 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -23262,6 +23265,21 @@ public:
         }
     }
 };
+
+// ---------------------------------------------------------------------------
+// Slug aliases
+// ---------------------------------------------------------------------------
+// Some seed sources use slightly different slugs for the same problem.
+// Add lightweight aliases here so `npm run seed:solutions` can still update
+// the existing DB rows without requiring destructive reseeding.
+if (!SOLUTIONS["number-of-provinces"] && SOLUTIONS["provinces"]) {
+    SOLUTIONS["number-of-provinces"] = SOLUTIONS["provinces"];
+}
+
+if (!SOLUTIONS["find-duplicate-number-extension"]) {
+    SOLUTIONS["find-duplicate-number-extension"] =
+        SOLUTIONS["find-duplicate-number"] || SOLUTIONS["find-the-duplicate-number"];
+}
 
 /**
  * Update all problems in the database with their complete solutions

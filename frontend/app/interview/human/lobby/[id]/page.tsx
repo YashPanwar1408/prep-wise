@@ -17,6 +17,7 @@ import {
 } from '@stream-io/video-react-sdk';
 import '@stream-io/video-react-sdk/dist/css/styles.css';
 import { MeetingSetup } from '@/components/interview/MeetingSetup';
+import { getOrCreateStreamClient } from '@/lib/stream-client';
 import { toast } from 'sonner';
 
 export default function HumanInterviewLobby() {
@@ -29,7 +30,6 @@ export default function HumanInterviewLobby() {
   const [call, setCall] = useState<Call | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const hasInitialized = useRef(false);
-  const clientRef = useRef<StreamVideoClient | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -46,17 +46,16 @@ export default function HumanInterviewLobby() {
 
         const { token, apiKey, userId } = await tokenRes.json();
 
-        const streamClient = new StreamVideoClient({
+        const streamClient = getOrCreateStreamClient({
           apiKey,
+          token,
           user: {
             id: userId,
             name: user.fullName || user.username || 'User',
             image: user.imageUrl,
           },
-          token,
         });
 
-        clientRef.current = streamClient;
         setClient(streamClient);
 
         const callId = `human-${interviewId}`;
@@ -72,12 +71,6 @@ export default function HumanInterviewLobby() {
     };
 
     initializeStream();
-
-    return () => {
-      if (clientRef.current) {
-        clientRef.current.disconnectUser().catch(console.error);
-      }
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -129,7 +122,7 @@ export default function HumanInterviewLobby() {
   return (
     <StreamVideo client={client}>
       <StreamCall call={call}>
-        <MeetingSetup call={call} onJoin={handleJoin} />
+        <MeetingSetup onJoin={handleJoin} />
       </StreamCall>
     </StreamVideo>
   );

@@ -5,6 +5,7 @@
 
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import { ensureDatabaseUser } from '@/lib/ensure-user';
 import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
@@ -33,11 +34,7 @@ export async function POST(request: Request) {
     }
 
     // Ensure user exists in database (Clerk → Prisma sync)
-    await prisma.user.upsert({
-      where: { id: userId },
-      update: {},
-      create: { id: userId, email: '' },
-    });
+    await ensureDatabaseUser(userId);
 
     // Create interview session
     const interview = await prisma.interview.create({

@@ -155,7 +155,6 @@ function LiveRoomContent() {
       <StreamCall call={call}>
         {!isSetupComplete ? (
           <MeetingSetup
-            call={call}
             onJoin={() => setIsSetupComplete(true)}
           />
         ) : (

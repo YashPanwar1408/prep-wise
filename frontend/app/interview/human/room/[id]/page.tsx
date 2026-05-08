@@ -16,8 +16,8 @@ import {
   StreamVideoClient,
 } from '@stream-io/video-react-sdk';
 import '@stream-io/video-react-sdk/dist/css/styles.css';
-import '@/app/stream-overrides.css';
 import { MeetingRoom } from '@/components/interview/MeetingRoom';
+import { disconnectStreamClient, getOrCreateStreamClient } from '@/lib/stream-client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -34,6 +34,7 @@ export default function HumanInterviewRoom() {
   const [showInvite, setShowInvite] = useState(false);
   const hasInitialized = useRef(false);
   const clientRef = useRef<StreamVideoClient | null>(null);
+  const callRef = useRef<Call | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -50,14 +51,14 @@ export default function HumanInterviewRoom() {
 
         const { token, apiKey, userId } = await tokenRes.json();
 
-        const streamClient = new StreamVideoClient({
+        const streamClient = getOrCreateStreamClient({
           apiKey,
+          token,
           user: {
             id: userId,
             name: user.fullName || user.username || 'User',
             image: user.imageUrl,
           },
-          token,
         });
 
         clientRef.current = streamClient;
@@ -65,6 +66,7 @@ export default function HumanInterviewRoom() {
 
         const callId = `human-${interviewId}`;
         const streamCall = streamClient.call('default', callId);
+        callRef.current = streamCall;
 
         // Prompt for media permissions early to avoid device-manager races.
         if (navigator.mediaDevices?.getUserMedia) {
@@ -94,15 +96,14 @@ export default function HumanInterviewRoom() {
     initializeStream();
 
     return () => {
-      if (clientRef.current) {
-        clientRef.current.disconnectUser().catch(console.error);
-      }
+      callRef.current?.leave().catch(() => undefined);
+      disconnectStreamClient(clientRef.current).catch(() => undefined);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleLeave = () => {
-    router.push('/interview');
+    router.push('/dashboard');
   };
 
   const copyInviteLink = () => {

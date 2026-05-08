@@ -20,6 +20,8 @@ interface Problem {
   }>;
   constraints: string[];
   starterCode?: Record<Language, string>;
+  functionName?: string | null;
+  slug?: string;
 }
 
 interface TestResult {
@@ -42,6 +44,236 @@ const LANGS: Record<Language, string> = {
   java: "Java",
   cpp: "C++",
 };
+
+const sanitizeEditorCode = (src: string) =>
+  String(src)
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\u00A0/g, " ")
+    .replace(/[\u200B\u200C\u200D]/g, "")
+    .replace(/\uFEFF/g, "");
+
+const slugToFunctionName = (s: string) =>
+  s.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+
+type ExtractedSignature = {
+  name: string;
+  params: Array<{ name: string; pyType?: string }>;
+  returnPyType?: string;
+};
+
+const normalizePyType = (t?: string) =>
+  String(t || '')
+    .trim()
+    .replace(/^typing\./, '')
+    .replace(/^Optional\[(.*)\]$/, '$1')
+    .replace(/^Union\[(.*)\]$/, (_m, inner) => {
+      const parts = String(inner)
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .filter((p) => p !== 'None');
+      return parts[0] || 'Any';
+    });
+
+function tryExtractPythonSignature(pySrc: string): ExtractedSignature | null {
+  const m = pySrc.match(/def\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:/);
+  if (!m) return null;
+
+  const [, name, rawParams, rawReturn] = m;
+  const parts = rawParams
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .filter((p) => p !== 'self');
+
+  const params = parts.map((p) => {
+    const noDefault = p.split('=')[0].trim();
+    const [paramName, typeAnno] = noDefault.split(':').map((x) => x.trim());
+    return { name: paramName || 'arg', pyType: typeAnno || undefined };
+  });
+
+  const returnPyType = rawReturn ? normalizePyType(rawReturn) : undefined;
+  return { name, params, returnPyType };
+}
+
+function tryExtractJavaScriptSignature(jsSrc: string): { name: string; params: string[] } | null {
+  // var fn = function(a, b)
+  const m1 = jsSrc.match(/(?:var|let|const)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*function\s*\(([^)]*)\)/);
+  if (m1) {
+    const [, name, rawParams] = m1;
+    const params = rawParams
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    return { name, params };
+  }
+  // function fn(a, b)
+  const m2 = jsSrc.match(/function\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)/);
+  if (m2) {
+    const [, name, rawParams] = m2;
+    const params = rawParams
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    return { name, params };
+  }
+  return null;
+}
+
+function pyTypeToJava(t?: string, { forReturn = false } = {}): string {
+  const n = normalizePyType(t);
+  if (!n || n === 'Any') return forReturn ? 'Object' : 'Object';
+
+  const listMatch = n.match(/^(?:List|list)\[(.*)\]$/);
+  if (listMatch) {
+    const inner = normalizePyType(listMatch[1]);
+    const innerListMatch = inner.match(/^(?:List|list)\[(.*)\]$/);
+    if (innerListMatch) {
+      const scalar = pyTypeToJava(innerListMatch[1]);
+      return `${scalar}[][]`;
+    }
+    const scalar = pyTypeToJava(inner);
+    return `${scalar}[]`;
+  }
+
+  switch (n) {
+    case 'int':
+      return 'int';
+    case 'float':
+      return 'double';
+    case 'bool':
+      return 'boolean';
+    case 'str':
+      return 'String';
+    case 'None':
+      return 'void';
+    default:
+      return 'Object';
+  }
+}
+
+function pyTypeToCpp(t?: string, { forReturn = false } = {}): string {
+  const n = normalizePyType(t);
+  if (!n || n === 'Any') return forReturn ? 'int' : 'int';
+
+  const listMatch = n.match(/^(?:List|list)\[(.*)\]$/);
+  if (listMatch) {
+    const inner = normalizePyType(listMatch[1]);
+    const innerListMatch = inner.match(/^(?:List|list)\[(.*)\]$/);
+    if (innerListMatch) {
+      const scalar = pyTypeToCpp(innerListMatch[1]);
+      return `vector<vector<${scalar}>>`;
+    }
+    const scalar = pyTypeToCpp(inner);
+    return `vector<${scalar}>`;
+  }
+
+  switch (n) {
+    case 'int':
+      return 'int';
+    case 'float':
+      return 'double';
+    case 'bool':
+      return 'bool';
+    case 'str':
+      return 'string';
+    default:
+      return 'int';
+  }
+}
+
+function buildFallbackStarter(problem: Problem, language: Language, slug: string): string {
+  const sc = (problem?.starterCode ?? {}) as Partial<Record<Language, string>>;
+  const py = typeof sc.python === 'string' ? sc.python : '';
+  const js = typeof sc.javascript === 'string' ? sc.javascript : '';
+
+  const pySig = py ? tryExtractPythonSignature(py) : null;
+  const jsSig = js ? tryExtractJavaScriptSignature(js) : null;
+
+  const functionName =
+    problem.functionName ||
+    pySig?.name ||
+    jsSig?.name ||
+    slugToFunctionName(problem.slug || slug);
+
+  const paramNames =
+    pySig?.params.map((p) => p.name).filter(Boolean) ||
+    jsSig?.params.filter(Boolean) ||
+    [];
+
+  const paramsWithTypes: Array<{ name: string; pyType?: string }> = pySig?.params.length
+    ? pySig.params
+    : paramNames.map((n) => ({ name: n, pyType: undefined }));
+
+  if (language === 'python') {
+    const args = paramsWithTypes
+      .map((p) => (p.pyType ? `${p.name}: ${normalizePyType(p.pyType)}` : p.name))
+      .join(', ');
+    const returns = pySig?.returnPyType ? ` -> ${normalizePyType(pySig.returnPyType)}` : '';
+    return `from typing import *\n\nclass Solution:\n    def ${functionName}(self${args ? `, ${args}` : ''})${returns}:\n        `;
+  }
+
+  if (language === 'javascript') {
+    const args = (paramNames.length ? paramNames : paramsWithTypes.map((p) => p.name))
+      .filter(Boolean)
+      .join(', ');
+    return `/**\n * @return {any}\n */\nvar ${functionName} = function(${args}) {\n  // Write your code here\n\n};`;
+  }
+
+  if (language === 'java') {
+    const returnType = pySig?.returnPyType ? pyTypeToJava(pySig.returnPyType, { forReturn: true }) : 'Object';
+    const args = paramsWithTypes
+      .map((p, i) => {
+        const t = p.pyType ? pyTypeToJava(p.pyType) : 'Object';
+        const name = p.name || `arg${i}`;
+        return `${t} ${name}`;
+      })
+      .join(', ');
+
+    const returnStmt =
+      returnType === 'void'
+        ? ''
+        : returnType === 'boolean'
+          ? '\n        return false;'
+          : returnType === 'int' || returnType === 'long' || returnType === 'double'
+            ? '\n        return 0;'
+            : '\n        return null;';
+
+    return `import java.util.*;\n\nclass Solution {\n    public ${returnType} ${functionName}(${args}) {\n        // Write your code here${returnStmt}\n    }\n}`;
+  }
+
+  // cpp
+  const returnType = pySig?.returnPyType ? pyTypeToCpp(pySig.returnPyType, { forReturn: true }) : 'int';
+  const args = paramsWithTypes
+    .map((p, i) => {
+      const t = p.pyType ? pyTypeToCpp(p.pyType) : 'int';
+      const name = p.name || `arg${i}`;
+      // Match judge driver which passes vectors by value
+      if (t.startsWith('vector<')) return `${t} ${name}`;
+      if (t === 'string') return `string ${name}`;
+      return `${t} ${name}`;
+    })
+    .join(', ');
+
+  const returnStmt =
+    returnType.startsWith('vector<')
+      ? '\n        return {};'
+      : returnType === 'bool'
+        ? '\n        return false;'
+        : returnType === 'string'
+          ? '\n        return "";'
+          : '\n        return 0;';
+
+  return `#include <bits/stdc++.h>\nusing namespace std;\n\nclass Solution {\npublic:\n    ${returnType} ${functionName}(${args}) {\n        // Write your code here${returnStmt}\n    }\n};`;
+}
+
+function getStarterCode(problem: Problem, language: Language, slug: string): string {
+  const sc = (problem?.starterCode ?? {}) as Partial<Record<Language, unknown>>;
+  const raw = sc[language];
+  if (typeof raw === 'string' && raw.trim().length > 0) return raw;
+  return buildFallbackStarter(problem, language, slug);
+}
 
 export default function SolvePage() {
   const router = useRouter();
@@ -67,7 +299,6 @@ export default function SolvePage() {
         const j = await r.json();
         if (!cancelled) {
           setProblem(j);
-          setCode(j.starterCode?.[language] || "// Write your code here");
         }
       } catch (err) {
         console.error("Error loading problem:", err);
@@ -82,9 +313,8 @@ export default function SolvePage() {
   }, [slug]);
 
   useEffect(() => {
-    if (problem?.starterCode?.[language]) {
-      setCode(problem.starterCode[language]);
-    }
+    if (!problem) return;
+    setCode(sanitizeEditorCode(getStarterCode(problem, language, slug)));
   }, [language, problem]);
 
   // Compact value formatter — avoids giant pretty-printed arrays
@@ -164,7 +394,8 @@ export default function SolvePage() {
                     setOutput(`✓ All ${total} test case(s) passed!`);
                   } else {
                     const failed = data.results.find((r: TestResult) => !r.passed);
-                    let errorMsg = `✗ Failed on test case ${data.results.findIndex((r: TestResult) => !r.passed) + 1}/${total}\n\n`;
+                    const failedTc = failed?.testCase ?? (data.results.findIndex((r: TestResult) => !r.passed) + 1);
+                    let errorMsg = `✗ Failed on test case ${failedTc}/${total}\n\n`;
 
                     if (failed?.error) {
                       errorMsg += `Error: ${failed.error}`;
@@ -225,7 +456,8 @@ export default function SolvePage() {
                     setOutput(`✓ Accepted!\n\n${passedCount}/${totalCount} test cases passed\nRuntime: ${avgTime.toFixed(0)}ms\nMemory: ${data.results[0]?.memoryUsed || 'N/A'}`);
                   } else {
                     const failed = data.results.find((r: TestResult) => !r.passed);
-                    let errorMsg = `✗ Test Case ${passedCount + 1}/${totalCount} Failed\n\n`;
+                    const failedTc = failed?.testCase ?? (passedCount + 1);
+                    let errorMsg = `✗ Test Case ${failedTc}/${totalCount} Failed\n\n`;
 
                     if (failed?.error) {
                       errorMsg += `Error: ${failed.error}`;
@@ -353,17 +585,19 @@ export default function SolvePage() {
                   <div className="flex-1 overflow-y-auto">
                     {showResults && testResults.length > 0 ? (
                       <div className="p-4 space-y-3">
-                        {testResults.map((result, idx) => (
-                          <div
-                            key={idx}
-                            className={`border rounded-lg p-3 ${result.passed ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'}`}
-                          >
+                        {testResults.map((result, idx) => {
+                          const tcNum = result.testCase ?? (idx + 1);
+                          return (
+                            <div
+                              key={result.testCase ?? idx}
+                              className={`border rounded-lg p-3 ${result.passed ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'}`}
+                            >
                             <div className="flex items-center justify-between mb-2">
                               <span className="font-semibold text-sm">
                                 {result.passed ? (
-                                  <span className="text-green-400">✓ Test Case {idx + 1}</span>
+                                  <span className="text-green-400">✓ Test Case {tcNum}</span>
                                 ) : (
-                                  <span className="text-red-400">✗ Test Case {idx + 1}</span>
+                                  <span className="text-red-400">✗ Test Case {tcNum}</span>
                                 )}
                               </span>
                               {result.executionTime && (
@@ -413,8 +647,9 @@ export default function SolvePage() {
                             {result.isHidden && !result.passed && (
                               <div className="text-xs text-slate-500">Hidden test case failed</div>
                             )}
-                          </div>
-                        ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="p-4 font-mono text-sm whitespace-pre-wrap">

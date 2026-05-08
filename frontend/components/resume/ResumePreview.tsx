@@ -4,11 +4,15 @@ import type { Resume } from '@/lib/schemas/resume.schema';
 type AtsItem = {
   id: string | number;
   role?: string;
+  title?: string;
   school?: string;
   degree?: string;
   startDate?: string;
+  endDate?: string;
+  current?: boolean;
   graduationDate?: string;
   company?: string;
+  technologies?: string;
   description?: string;
 };
 
@@ -141,6 +145,19 @@ export const ResumePreview: React.FC<Props> = ({ resume, mode }) => {
   }
 
   // 2. ATS CLASSIC MODE (Simple, high-contrast, linear)
+  const skillsLines: string[] = [];
+  if (resume.skills?.categories && resume.skills.categories.length > 0) {
+    for (const cat of resume.skills.categories) {
+      if (cat?.category && Array.isArray(cat.skills) && cat.skills.length > 0) {
+        skillsLines.push(`${cat.category}: ${cat.skills.join(', ')}`);
+      }
+    }
+  }
+  if (resume.skills?.flatSkills && resume.skills.flatSkills.length > 0) {
+    skillsLines.push(resume.skills.flatSkills.join(', '));
+  }
+  const skillsContent = skillsLines.length > 0 ? skillsLines.join('\n') : undefined;
+
   return (
     <div className="w-[210mm] min-h-[297mm] bg-white shadow-xl p-12 text-black font-serif">
       {/* Centered Header */}
@@ -158,23 +175,33 @@ export const ResumePreview: React.FC<Props> = ({ resume, mode }) => {
       {[
         { title: 'Summary', content: resume.summary?.summary },
         { title: 'Experience', items: resume.experience },
+        { title: 'Projects', items: resume.projects },
         { title: 'Education', items: resume.education },
+        { title: 'Skills', content: skillsContent },
       ].map((section) => (
         section.content || (Array.isArray(section.items) && section.items.length > 0) ? (
           <div key={section.title} className="mb-6">
             <h3 className="text-sm font-bold uppercase border-b border-gray-400 mb-3">{section.title}</h3>
             {typeof section.content === 'string' ? (
-              <p className="text-sm">{section.content}</p>
+              <p className="text-sm whitespace-pre-wrap">{section.content}</p>
             ) : (
               <div className="space-y-4">
                  {/* Logic to render generic list items for ATS view */}
                  {((section.items ?? []) as AtsItem[]).map((item) => (
                     <div key={item.id}>
                       <div className="flex justify-between font-bold text-sm">
-                         <span>{item.role || item.school || item.degree}</span>
-                         <span>{item.startDate || item.graduationDate}</span>
+                         <span>{item.role || item.title || item.school || item.degree}</span>
+                         <span>
+                           {item.graduationDate
+                             ? item.graduationDate
+                             : item.startDate
+                               ? `${item.startDate}${item.current ? ' – Present' : item.endDate ? ` – ${item.endDate}` : ''}`
+                               : item.endDate || ''}
+                         </span>
                       </div>
-                      <div className="text-sm italic mb-1">{item.company}</div>
+                      {(item.company || item.technologies) ? (
+                        <div className="text-sm italic mb-1">{item.company || item.technologies}</div>
+                      ) : null}
                       {item.description && (
                          <ul className="list-disc ml-5 text-sm">
                            {item.description.split('\n').map((l, i) => (

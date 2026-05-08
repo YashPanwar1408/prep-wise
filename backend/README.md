@@ -1,287 +1,137 @@
-# PrepWise Backend
+# ⚙️ PrepWise Backend Infrastructure
 
-This is the **backend API** for the PrepWise DSA + interview platform. It is a Node.js / Express service with Prisma for database access and several AI‑powered services (ATS resume analysis, interview helpers, code judge).
+> **Node.js 18** · Express · Judge0 (Docker) · Prisma · PostgreSQL · Groq AI
 
-This README describes all folders and main files so another AI or developer can understand the backend without access to the full codebase.
-
-> Date of snapshot: **2026‑02‑23**
+The backend is a **highly-concurrent API service** tasked with handling computationally heavy operations: Sandboxed Code Execution, AI-driven ATS resume scoring, and serving complex relational learning content.
 
 ---
 
-## Tech Stack
+## 🏛️ API Architecture
 
-- **Runtime:** Node.js (CommonJS)
-- **Framework:** Express 4
-- **ORM:** Prisma (`@prisma/client`, `prisma`)
-- **Auth:** JSON Web Tokens (`jsonwebtoken`) + bcrypt (`bcryptjs`)
-- **AI:** Grok API for ATS and interview helpers, custom ATS scoring logic in `ai/ats.js`
-- **File Uploads:** `multer` for handling uploaded files (PDF resumes, etc.)
-- **PDF Processing:** `pdf-parse` (currently used only in older/legacy flows)
-- **Other:** `cors`, `dotenv`, `uuid`, `zod`
+The backend follows a standard Controller-Service-Route pattern, ensuring business logic is decoupled from HTTP transport.
+
+```mermaid
+graph LR
+    subgraph Request
+        HTTP["Express Routes"]
+    end
+    
+    subgraph Controllers
+        ExecCtrl["Execution Controller"]
+        ATSCtrl["ATS Controller"]
+        ContentCtrl["DSA/Learn Controller"]
+    end
+    
+    subgraph Services / AI
+        Judge0["Judge0 Sandbox Engine"]
+        ATSClass["ATSScorer Class"]
+        Groq["Groq LLM API"]
+    end
+    
+    subgraph Persistence
+        Prisma["Prisma Client"]
+        Neon[("Neon Postgres")]
+    end
+
+    HTTP --> ExecCtrl & ATSCtrl & ContentCtrl
+    ExecCtrl --> Judge0
+    ATSCtrl --> ATSClass
+    ATSClass --> Groq
+    ExecCtrl & ContentCtrl --> Prisma
+    Prisma --> Neon
+```
 
 ---
 
-## Running the Backend
+## 🏃 Code Execution Pipeline
 
-From `backend/`:
+The execution engine (`routes/execution.routes.js`) safely executes untrusted user code.
+
+### The Request Lifecycle
+1. Frontend POSTs `{ source_code, language_id, stdin }`.
+2. Backend intercepts and normalizes the payload.
+3. Submits via HTTP to Judge0 API (Internal or RapidAPI hosted).
+4. **Sandboxing**: Judge0 mounts the code inside an isolated Docker container based on the `language_id` (e.g., Python 3, Java 17).
+5. **Resource Limits**: The container is constrained by `cgroups` (e.g., 5 seconds CPU time, 128MB RAM).
+6. Execution completes. Judge0 returns `stdout`, `stderr`, and execution metadata.
+7. If it's a "Submit" request, the backend iterates through all test cases, compares outputs, and persists the result to the `Submission` table via Prisma.
+
+### Security Considerations
+- Never execute code directly on the host Node.js process.
+- Docker containers run without network privileges to prevent data exfiltration.
+- `ulimit` and `cgroups` prevent fork bombs and memory exhaustion attacks.
+
+---
+
+## 🧠 AI ATS Scoring Engine
+
+The backend includes a sophisticated ATS (Applicant Tracking System) simulation engine (`ai/ats.js`).
+
+**Phase 1: Deterministic Keyword Parsing (Fast)**
+- Extracts text and compares against a massive internal dictionary of Action Verbs, Technical Skills, and Soft Skills using Regex. Calculates a base score.
+
+**Phase 2: LLM Narrative Analysis (Deep)**
+- Formats the resume and Job Description, and proxies it to **Groq**.
+- Groq evaluates the semantic fit, identifies missing implicit skills, and generates actionable, paragraph-length feedback in strict JSON format.
+- **Why Groq?** Speed. Resume analysis requires reading ~2,000 tokens. Traditional LLMs take 10+ seconds. Groq's LPU does it in ~1.5 seconds, avoiding HTTP timeouts.
+
+---
+
+## 🗄️ Database Seeding & Migrations
+
+The backend repository manages the "source of truth" content via Prisma seeds.
+
+- `npm run seed:problems` - Injects 250+ FAANG-level DSA problems, starter code, solutions (Python/Java/C++), and test cases.
+- `npm run seed:roadmaps` - Generates highly structured, phase-by-phase learning paths for SWE, Frontend, Backend, etc.
+- `npm run seed:cheatsheets` - Loads Markdown-based technical reference sheets into the DB.
+
+---
+
+## 🚀 Scaling & Concurrency
+
+- **Statelessness**: The Express app maintains zero local state. Sessions are managed by Clerk (JWTs), and data by Neon. You can scale from 1 to 100 Express instances instantaneously behind a Load Balancer.
+- **Database Pooling**: Connecting to serverless Postgres requires PgBouncer. The `DATABASE_URL` must use the pooled endpoint, preventing Node.js from exhausting database connections during traffic spikes.
+- **Graceful Shutdown**: Intercepts `SIGTERM` and `SIGINT` to call `prisma.$disconnect()` ensuring no dangling connections remain during deployment rollouts.
+
+---
+
+## ⚙️ Environment Variables
+
+| Variable | Description | Required | Example |
+|---|---|---|---|
+| `PORT` | API listener port | ❌ | `5000` |
+| `DATABASE_URL` | Neon Postgres Connection String | ✅ | `postgresql://neondb_owner...` |
+| `JWT_SECRET` | Legacy fallback secret | ✅ | `...` |
+| `GROK_API_KEY` | Groq API Key for ATS | ✅ | `gsk_...` |
+| `JUDGE0_API_URL` | Judge0 Endpoint | ✅ | `https://judge0-ce.p.rapidapi.com` |
+| `JUDGE0_API_KEY` | RapidAPI / Judge0 Key | ✅ | `...` |
+| `JUDGE0_CPU_LIMIT` | Sandbox Max Time (sec) | ❌ | `5` |
+| `JUDGE0_MEM_LIMIT` | Sandbox Max RAM (KB) | ❌ | `131072` |
+
+---
+
+## 🐳 Docker Deployment
+
+The backend ships with a multi-stage Dockerfile that installs all necessary language runtimes if you choose to bypass Judge0 and execute locally (Not recommended for prod, but excellent for dev).
 
 ```bash
-npm install
+# Build
+docker build -t prepwise-api .
 
-# Development (auto‑restart with nodemon)
-npm run dev
-
-# Production
-npm start
-```
-
-The server listens on `PORT` (default `5000`) and exposes all routes under `/api/*`.
-
-Environment variables (minimum):
-
-```env
-PORT=5000
-JWT_SECRET=your-secret-key
-DATABASE_URL=postgres://...   # or other Prisma‑supported DB
-GROK_API_KEY=...            # for Grok API calls
-```
-
-> The Judge service may also require Docker to be installed and running if you enable container‑based execution.
-
----
-
-## Top‑Level Files and Folders
-
-- `.env` – Local environment variables for development.
-- `ai/` – AI‑related utilities (currently ATS scorer).
-- `data/` – Static JSON datasets for seed/enrichment (courses, roadmaps, etc.).
-- `docker-compose.yml` – Compose file for running judge / support services in containers.
-- `Dockerfile` – Image definition for the backend service.
-- `index.js` – Main Express server (entry point).
-- `node_modules/` – Installed dependencies.
-- `package.json` / `package-lock.json` – Backend dependencies and scripts.
-- `prisma/` – Prisma schema, migrations, and seed scripts.
-- `routes/` – All Express route modules mounted under `/api/*`.
-
----
-
-## `index.js` – Express App Setup
-
-Key responsibilities:
-
-- Loads environment via `dotenv.config()`.
-- Creates Express app and configures middleware:
-  - `cors()` – enables CORS for the frontend.
-  - `express.json()` / `express.urlencoded()` – JSON and form parsing.
-- Registers route modules:
-  - `/api/auth` → `routes/auth.js`
-  - `/api/judge` → `routes/judge.js`
-  - `/api/ats` → `routes/ats.js`
-  - `/api/dsa` → `routes/dsa.js`
-  - `/api/progress` → `routes/progress.js`
-  - `/api/learn` → `routes/learn.js`
-  - `/api/roadmaps` → `routes/roadmaps.js`
-  - `/api/cheatsheets` → `routes/cheatsheets.js`
-- Health check:
-  - `GET /api/health` – returns `{ status: 'ok', ... }`.
-- Default root:
-  - `GET /` – returns `{ message: 'Interview Platform API' }`.
-
-This file does **not** contain business logic; it only wires middleware and routes.
-
----
-
-## `routes/` – REST API Modules
-
-Each route file defines an Express router and is mounted under a base path from `index.js`.
-
-### `routes/auth.js`
-
-- Handles **user authentication and registration**.
-- Uses `bcryptjs` to hash passwords and `jsonwebtoken` to issue/access tokens.
-- Typical endpoints (exact names may vary, see file):
-  - `POST /api/auth/register` – create a new user.
-  - `POST /api/auth/login` – authenticate and return JWT.
-  - `GET /api/auth/me` – return current user profile based on JWT.
-
-### `routes/judge.js` – Code Execution and Submission
-
-- Provides endpoints for **DSA code execution** using containerized runners.
-- Uses `@prisma/client` to fetch problem metadata and test cases and to record submissions.
-- Uses Node `child_process.spawn` with Docker (or direct language runtimes) to execute user code in isolation.
-- Key building blocks in the file:
-  - BigInt‑safe JSON stringifier for handling large integers.
-  - **Driver templates** for Python and JavaScript that wrap the user solution in a controlled main function.
-  - `executeInDocker(language, code, testCases)` – orchestrates writing files, running containers, collecting stdout/stderr, and mapping results to per‑test‑case status.
-  - Route handlers for:
-    - `POST /api/judge/execute` – run code against **custom input** or a single test case.
-    - `POST /api/judge/submit` – run code against **all official test cases** and record result in DB.
-    - `GET /api/judge/languages` – list supported languages / runtimes.
-
-> **Known limitation (Judge):**
-> - On the frontend (DSA practice), run/test/submit currently **do not work reliably**. This is usually because Docker is not running, containers are not configured with the expected images, or there are mismatches between judge responses and frontend expectations. From the user perspective, DSA code execution is currently considered **broken**.
-
-### `routes/ats.js` – ATS Resume Scoring API
-
-- Wraps the `ATSScorer` class from `ai/ats.js`.
-- Endpoints:
-  - `POST /api/ats/analyze` – Full AI‑powered analysis. Expects `{ resumeText, jobDescription }`. Returns detailed breakdown and matching score.
-  - `POST /api/ats/quick-score` – Lightweight keyword‑based matching; faster, no external AI.
-  - `POST /api/ats/batch-analyze` – Score a resume against multiple job descriptions at once.
-  - `GET /api/ats/keywords` – Returns ATS keyword categories.
-
-These endpoints are consumed by the frontend ATS views (resume analysis pages).
-
-### `routes/dsa.js` – DSA Content and Problem APIs
-
-- Uses Prisma client to manage DSA topics, lessons, problems, and user progress.
-- Main responsibilities:
-  - `GET /api/dsa/sidebar` – Returns topics and lessons for sidebar navigation (ordered by topic/order).
-  - `GET /api/dsa/lesson/:slug` – Returns a lesson by slug with previous/next metadata for navigation.
-  - `GET /api/dsa/lessons/:id` – Fetch single lesson by ID.
-  - `GET /api/dsa/topics/:slug/lessons` – All lessons for a topic.
-  - `GET /api/dsa/problems` – Filterable problem list (by sheet, difficulty, pattern, search, user progress).
-  - `GET /api/dsa/problems/:slug` – Single problem with progress for a specific user.
-  - `GET /api/dsa/patterns` – Returns DSA patterns/metadata used for filtering.
-- This data is rendered by the frontend DSA Learn and Practice pages.
-
-### `routes/learn.js`
-
-- APIs for the **Learn** section (Full‑Stack and AI/ML tracks).
-- Likely endpoints:
-  - `GET /api/learn/tracks` – List of available learning tracks.
-  - `GET /api/learn/lessons` / `GET /api/learn/lessons/:id` – Lesson content.
-  - `GET /api/learn/progress` – User progress per track/lesson.
-
-Exact shapes depend on schema but the pattern mirrors DSA (topics, lessons, progress).
-
-### `routes/progress.js`
-
-- Centralized **progress tracking API** for DSA and Learn.
-- Endpoints typically:
-  - `POST /api/progress/update` – Mark a lesson/problem as started/finished/solved.
-  - `GET /api/progress/:userId` – Fetch overall progress snapshot.
-
-### `routes/roadmaps.js`
-
-- Serves curated **roadmap** content (e.g. DSA Roadmap, Full‑Stack Roadmap, AI/ML Roadmap).
-- Endpoints:
-  - `GET /api/roadmaps` – List of roadmaps.
-  - `GET /api/roadmaps/:slug` – Single roadmap with stages/items.
-
-### `routes/cheatsheets.js`
-
-- Serves **cheatsheet** content (DSA patterns, language snippets, system design notes, etc.).
-- Endpoints:
-  - `GET /api/cheatsheets` – List of cheatsheets by category.
-  - `GET /api/cheatsheets/:category` or `/:slug` – Specific cheatsheet details.
-
----
-
-## `ai/` – AI Utilities
-
-### `ai/ats.js`
-
-- Implements the `ATSScorer` class used by `routes/ats.js`.
-- Responsibilities:
-  - Parse raw resume/job description text.
-  - Extract keywords and skills.
-  - Compute scores for overall match, keyword coverage, and formatting.
-  - Optionally call Grok or rules-based heuristics for deeper analysis.
-- Exposes methods:
-  - `analyzeResume(resumeText, jobDescription)` – Full AI analysis.
-  - `quickScore(resumeText, jobDescription)` – Fast heuristic score.
-  - `batchAnalyze(resumeText, jobsArray)` – Score against multiple jobs.
-  - `keywordCategories` – Map of common ATS keywords.
-
----
-
-## `prisma/` – Database Layer
-
-- `prisma/schema.prisma` – Canonical database schema used by backend.
-  - Contains models such as `User`, `DSATopic`, `DSALesson`, `Problem`, `Roadmap`, `Cheatsheet`, `InterviewSession`, `Resume`, `TestCase`, etc.
-  - Fields store metadata like slugs, titles, content markdown, difficulty, patterns, progress records.
-- `prisma/migrations/` – Auto‑generated migration history for evolving the schema.
-- Seed scripts:
-  - `prisma/seed.js` – Master seed orchestrator.
-  - `prisma/seedFullStack.js` – Seeds full‑stack learning track.
-  - `prisma/seedAIML.js` – Seeds AI/ML learning track.
-  - `prisma/seedRoadmaps.js` – Seeds roadmap content.
-  - `prisma/seedCheatsheets.js` – Seeds cheatsheets.
-  - `prisma/seedPatterns.js` – Seeds DSA patterns/sheets.
-  - `prisma/seedMaster250.js` – Seeds a curated list of ~250 DSA problems.
-  - `prisma/seedSolution.js` – Seeds reference solutions/editorials.
-  - `prisma/seedTestCases.js` – Seeds judge test cases for problems.
-
-Scripts in `package.json`:
-
-```bash
-npm run prisma:generate   # generate Prisma client
-npm run prisma:migrate    # run dev migrations
-npm run prisma:seed       # run prisma/seed.js
-npm run seed:problems     # seed DSA patterns + Master 250
+# Run
+docker run -p 5000:5000 \
+  -e DATABASE_URL="postgresql://..." \
+  -e GROK_API_KEY="..." \
+  -e JUDGE0_API_URL="..." \
+  prepwise-api
 ```
 
 ---
 
-## `data/` – Static JSON Data
+## 🩺 Troubleshooting
 
-- `data/courses.json` – Base course definitions for learning tracks.
-- `data/enrichBatch1_part*.json` – Enrichment JSONs used by seed/AI scripts to enhance course or roadmap content.
+**Judge0 API returning 401 or timeouts:**
+- **Fix**: Verify `JUDGE0_API_KEY` and `JUDGE0_API_HOST`. If using the free RapidAPI tier, ensure you haven't exceeded the 50 requests/day quota.
 
-These files are typically read by Prisma seed scripts to populate the DB.
-
----
-
-## Docker and Deployment Files
-
-- `Dockerfile` – Defines the backend service image (Node.js, dependencies, app code).
-- `docker-compose.yml` – Orchestrates containers for:
-  - Backend API
-  - Judge runtime containers (Node/Python/Java/C++ images) if configured
-  - Database (e.g. Postgres) if desired
-
-> Note: Some judge scripts also spawn Docker containers directly via the CLI; ensure Docker daemon is running and required images are pulled.
-
----
-
-## Known Issues and Non‑Working Parts (Backend)
-
-As of **2026‑02‑23**, the following are known/backend‑side problems or caveats:
-
-- **Judge / DSA code execution not wired correctly end‑to‑end:**
-  - Even though `routes/judge.js` implements `executeInDocker` and submission logic, the frontend DSA pages report that **Run / Test / Submit do not work**.
-  - Likely causes:
-    - Docker not running or images not pulled.
-    - Timeouts or errors inside containers not being surfaced clearly.
-    - Mismatch between expected response shape and frontend consumption.
-
-- **Legacy resume parsing logic vs. new architecture:**
-  - Older versions used `pdf-parse` in Express routes to handle PDF uploads and parsing.
-  - The current architecture favors **client‑side PDF parsing + server actions** in the frontend; some of the PDF‑related backend logic is now unused or partially deprecated.
-
-- **AI / Grok configuration:**
-  - If `GROK_API_KEY` is missing or invalid, AI-backed logic inside `ai/` helpers will fail.
-  - Frontend currently reports resume parsing issues; these are mostly client‑side (pdf.js worker), but backend AI endpoints still require valid keys.
-
-- **Auth vs. Clerk:**
-  - The backend has its own JWT‑based auth in `routes/auth.js`, while the frontend primarily uses **Clerk**.
-  - For some flows, you may be using Clerk tokens purely on the frontend and not verifying them on the backend;
-    ensure that any sensitive backend routes either trust Clerk via middleware or are only used with backend‑managed JWT.
-
----
-
-## How This Backend Relates to the Frontend
-
-- Frontend (Next.js) calls this backend primarily under `/api/*` endpoints:
-  - DSA content → `/api/dsa/*`
-  - Code execution → `/api/judge/*`
-  - ATS analysis → `/api/ats/*`
-  - Learn content → `/api/learn/*`
-  - Roadmaps → `/api/roadmaps/*`
-  - Cheatsheets → `/api/cheatsheets/*`
-  - Progress → `/api/progress/*`
-- Database schema is shared; frontend also has a Prisma schema for type safety, but **this backend** is the main source of truth for seeding and migrations.
-
-An AI that reads **this backend README** together with the **frontend README** will have a full high‑level picture of the PrepWise stack, routes, data models, and known limitations without needing direct code access.
-
+**Prisma `kind: Closed` or Timeout Errors:**
+- **Fix**: Serverless databases close connections rapidly. Ensure Node.js is using IPv4 first (`dns.setDefaultResultOrder('ipv4first')` is included in `index.js`), and ensure you are using the pooled connection URL, not the direct URL.

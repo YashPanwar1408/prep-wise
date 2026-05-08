@@ -1,3 +1,6 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -3421,7 +3424,7 @@ async function seedRoadmaps() {
       level: 'Advanced',
       duration: '12-15 months',
       gradient: 'from-pink-500 to-rose-500',
-      skills: ['Python', 'TensorFlow', 'PyTorch', 'Deep Learning', 'NLP', 'Computer Vision'],
+      skills: ['Python', 'NumPy', 'Pandas', 'scikit-learn', 'TensorFlow', 'PyTorch', 'Deep Learning', 'NLP', 'Computer Vision', 'MLOps', 'LLMs'],
       popularity: 96,
       order: 6,
       phases: {
@@ -3644,6 +3647,234 @@ async function seedRoadmaps() {
                 }
               ]
             }
+          },
+          {
+            title: 'Phase 3: MLOps & Deployment',
+            description: 'Deploy, monitor, and maintain ML systems in production',
+            order: 3,
+            steps: {
+              create: [
+                {
+                  title: 'Model Deployment & Serving',
+                  description: 'Serve models via APIs and batch jobs with reliable performance.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '3-4 weeks',
+                  order: 0,
+                  topics: ['Model Serving', 'FastAPI', 'Docker', 'Batch vs Online', 'Latency', 'Throughput'],
+                  prerequisites: ['TensorFlow & PyTorch'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'FastAPI Documentation',
+                      url: 'https://fastapi.tiangolo.com/',
+                      description: 'Build inference APIs'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'TensorFlow Serving',
+                      url: 'https://www.tensorflow.org/tfx/guide/serving',
+                      description: 'Production model serving'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'TorchServe',
+                      url: 'https://pytorch.org/serve/',
+                      description: 'Serve PyTorch models'
+                    }
+                  ],
+                  checkpoints: [
+                    'Package a trained model for inference',
+                    'Expose an inference REST API',
+                    'Dockerize the service',
+                    'Add timeouts, batching, and basic load testing'
+                  ],
+                  relatedCheatsheets: ['docker'],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Experiment Tracking & Versioning',
+                  description: 'Track experiments, datasets, and model artifacts for reproducibility.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '2-3 weeks',
+                  order: 1,
+                  topics: ['MLflow', 'DVC', 'Model Registry', 'Artifacts', 'Reproducibility'],
+                  prerequisites: ['Machine Learning Algorithms'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'MLflow Documentation',
+                      url: 'https://mlflow.org/docs/latest/index.html',
+                      description: 'Tracking + model registry'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'DVC Documentation',
+                      url: 'https://dvc.org/doc',
+                      description: 'Data version control'
+                    },
+                    {
+                      type: 'article',
+                      title: 'MLOps: Continuous delivery for ML',
+                      url: 'https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning',
+                      description: 'MLOps overview and patterns'
+                    }
+                  ],
+                  checkpoints: [
+                    'Log parameters/metrics for every run',
+                    'Version datasets and training code',
+                    'Store and retrieve model artifacts',
+                    'Promote models through a registry (staging -> prod)'
+                  ],
+                  relatedCheatsheets: ['numpy', 'pandas', 'sklearn'],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Monitoring, Drift & Retraining',
+                  description: 'Detect data/model drift and build safe retraining loops.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '2-3 weeks',
+                  order: 2,
+                  topics: ['Data Drift', 'Concept Drift', 'Monitoring', 'Alerting', 'Retraining', 'A/B Testing'],
+                  prerequisites: ['Model Deployment & Serving'],
+                  resources: [
+                    {
+                      type: 'article',
+                      title: 'A Guide to Data Drift',
+                      url: 'https://evidentlyai.com/blog/data-drift',
+                      description: 'How drift happens and how to detect it'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Evidently',
+                      url: 'https://docs.evidentlyai.com/',
+                      description: 'Open-source ML monitoring'
+                    },
+                    {
+                      type: 'article',
+                      title: 'Monitoring ML Systems',
+                      url: 'https://developers.google.com/machine-learning/guides/rules-of-ml',
+                      description: 'Practical rules for production ML'
+                    }
+                  ],
+                  checkpoints: [
+                    'Define online metrics and alerts',
+                    'Detect drift and data quality issues',
+                    'Build a retraining trigger strategy',
+                    'Evaluate safely before redeploying'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                }
+              ]
+            }
+          },
+          {
+            title: 'Phase 4: LLM Systems',
+            description: 'Build reliable LLM apps with evaluation, RAG, and adaptation',
+            order: 4,
+            steps: {
+              create: [
+                {
+                  title: 'Prompting & Evaluation',
+                  description: 'Design prompts and build evaluation loops for quality and safety.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '2-3 weeks',
+                  order: 0,
+                  topics: ['Prompting', 'Few-shot', 'System Prompts', 'Evaluation', 'Guardrails'],
+                  prerequisites: ['NLP & Transformers'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Prompt Engineering Guide',
+                      url: 'https://www.promptingguide.ai/',
+                      description: 'Practical prompting patterns'
+                    },
+                    {
+                      type: 'course',
+                      title: 'Hugging Face NLP Course',
+                      url: 'https://huggingface.co/learn/nlp-course/',
+                      description: 'Transformer/LLM ecosystem'
+                    }
+                  ],
+                  checkpoints: [
+                    'Build a prompt library for key tasks',
+                    'Create an evaluation dataset',
+                    'Measure quality with repeatable metrics',
+                    'Add output validation and guardrails'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Retrieval-Augmented Generation (RAG)',
+                  description: 'Ground LLM responses in your own data using retrieval pipelines.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '3-4 weeks',
+                  order: 1,
+                  topics: ['Embeddings', 'Chunking', 'Vector Databases', 'Reranking', 'Citations'],
+                  prerequisites: ['Prompting & Evaluation'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'LangChain RAG',
+                      url: 'https://python.langchain.com/docs/tutorials/rag/',
+                      description: 'RAG tutorial'
+                    },
+                    {
+                      type: 'article',
+                      title: 'RAG Explained',
+                      url: 'https://www.pinecone.io/learn/retrieval-augmented-generation/',
+                      description: 'Concepts and practical guidance'
+                    }
+                  ],
+                  checkpoints: [
+                    'Build an embeddings + retrieval pipeline',
+                    'Tune chunking and retrieval settings',
+                    'Add citations and source grounding',
+                    'Evaluate retrieval quality and end-to-end answers'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Fine-tuning & Adaptation (LoRA)',
+                  description: 'Adapt models to domains/tasks with parameter-efficient tuning.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '3-4 weeks',
+                  order: 2,
+                  topics: ['Fine-tuning', 'LoRA', 'PEFT', 'Datasets', 'Alignment'],
+                  prerequisites: ['Retrieval-Augmented Generation (RAG)'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Hugging Face PEFT',
+                      url: 'https://huggingface.co/docs/peft/index',
+                      description: 'Parameter-efficient fine-tuning'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Hugging Face TRL',
+                      url: 'https://huggingface.co/docs/trl/index',
+                      description: 'Training and alignment tooling'
+                    }
+                  ],
+                  checkpoints: [
+                    'Prepare a high-quality dataset',
+                    'Fine-tune with LoRA/PEFT',
+                    'Evaluate with task-specific metrics',
+                    'Deploy the adapted model safely'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                }
+              ]
+            }
           }
         ]
       }
@@ -3709,6 +3940,70 @@ async function seedRoadmaps() {
                     'Use async/await',
                     'Work with modules',
                     'Understand closures'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Mobile UI/UX Fundamentals',
+                  description: 'Learn layout, accessibility, and platform design guidelines.',
+                  difficulty: 'Beginner',
+                  estimatedTime: '1-2 weeks',
+                  order: 1,
+                  topics: ['Layouts', 'Typography', 'Accessibility', 'Responsive Design', 'Gestures'],
+                  prerequisites: ['JavaScript for Mobile'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Material Design',
+                      url: 'https://m3.material.io/',
+                      description: 'Android-friendly UI guidelines'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Apple Human Interface Guidelines',
+                      url: 'https://developer.apple.com/design/human-interface-guidelines/',
+                      description: 'iOS design standards'
+                    }
+                  ],
+                  checkpoints: [
+                    'Build responsive layouts',
+                    'Use platform-appropriate components',
+                    'Add accessibility labels',
+                    'Design for touch/gestures'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Networking & Async Patterns',
+                  description: 'Consume REST APIs reliably with good error handling and caching.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '1-2 weeks',
+                  order: 2,
+                  topics: ['HTTP', 'REST', 'Fetch', 'Timeouts', 'Retries', 'Caching'],
+                  prerequisites: ['JavaScript for Mobile'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'MDN Fetch API',
+                      url: 'https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API',
+                      description: 'Network requests with fetch'
+                    },
+                    {
+                      type: 'article',
+                      title: 'HTTP Status Codes',
+                      url: 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Status',
+                      description: 'Understand API responses'
+                    }
+                  ],
+                  checkpoints: [
+                    'Handle loading/error states in UI',
+                    'Use timeouts for network calls',
+                    'Implement retries for flaky networks',
+                    'Cache data for better UX'
                   ],
                   relatedCheatsheets: [],
                   relatedDSA: [],
@@ -3786,6 +4081,154 @@ async function seedRoadmaps() {
                   relatedCheatsheets: [],
                   relatedDSA: [],
                   relatedInterviews: []
+                },
+                {
+                  title: 'Navigation & Deep Linking',
+                  description: 'Implement stacks/tabs and handle deep links across the app.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '1-2 weeks',
+                  order: 2,
+                  topics: ['React Navigation', 'Stack', 'Tabs', 'Params', 'Deep Linking'],
+                  prerequisites: ['React Native Fundamentals'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'React Navigation Docs',
+                      url: 'https://reactnavigation.org/docs/getting-started',
+                      description: 'Navigation patterns and setup'
+                    }
+                  ],
+                  checkpoints: [
+                    'Build stack + tab navigation',
+                    'Pass route params safely',
+                    'Add deep linking',
+                    'Handle back behavior correctly'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'State Management & Data Fetching',
+                  description: 'Manage state predictably and fetch/cache server data.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '2-3 weeks',
+                  order: 3,
+                  topics: ['Context', 'Redux Toolkit', 'Zustand', 'React Query', 'Caching'],
+                  prerequisites: ['React Native Fundamentals'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Redux Toolkit',
+                      url: 'https://redux-toolkit.js.org/',
+                      description: 'Recommended Redux patterns'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'TanStack Query',
+                      url: 'https://tanstack.com/query/latest',
+                      description: 'Server-state management and caching'
+                    }
+                  ],
+                  checkpoints: [
+                    'Separate UI state vs server state',
+                    'Cache requests and handle refetching',
+                    'Avoid prop drilling with shared state',
+                    'Prevent race conditions in async flows'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Local Storage & Offline',
+                  description: 'Store data locally and build offline-friendly experiences.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '1-2 weeks',
+                  order: 4,
+                  topics: ['AsyncStorage', 'SQLite', 'Secure Storage', 'Offline-first', 'Sync'],
+                  prerequisites: ['State Management & Data Fetching'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'AsyncStorage',
+                      url: 'https://react-native-async-storage.github.io/async-storage/',
+                      description: 'Key/value storage'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Expo SecureStore',
+                      url: 'https://docs.expo.dev/versions/latest/sdk/securestore/',
+                      description: 'Securely store secrets'
+                    }
+                  ],
+                  checkpoints: [
+                    'Persist user sessions and settings',
+                    'Cache data for offline use',
+                    'Design conflict resolution (sync strategy)',
+                    'Store secrets securely'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Testing & Debugging',
+                  description: 'Write tests and debug production issues effectively.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '1-2 weeks',
+                  order: 5,
+                  topics: ['Jest', 'Testing Library', 'Detox', 'Flipper', 'Logging'],
+                  prerequisites: ['React Native Fundamentals'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'React Native Testing Library',
+                      url: 'https://callstack.github.io/react-native-testing-library/',
+                      description: 'Test UI and behavior'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Flipper',
+                      url: 'https://fbflipper.com/',
+                      description: 'Debug React Native apps'
+                    }
+                  ],
+                  checkpoints: [
+                    'Write unit + component tests',
+                    'Add end-to-end tests for critical flows',
+                    'Debug network + state issues',
+                    'Create a logging strategy'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Performance Optimization',
+                  description: 'Improve rendering performance and reduce app size and crashes.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '1-2 weeks',
+                  order: 6,
+                  topics: ['Profiling', 'Memoization', 'FlatList', 'Images', 'Bundle Size'],
+                  prerequisites: ['Testing & Debugging'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'React Native Performance',
+                      url: 'https://reactnative.dev/docs/performance',
+                      description: 'Official performance guide'
+                    }
+                  ],
+                  checkpoints: [
+                    'Fix unnecessary re-renders',
+                    'Optimize lists and images',
+                    'Profile startup time',
+                    'Reduce crashes and memory usage'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
                 }
               ]
             }
@@ -3823,6 +4266,96 @@ async function seedRoadmaps() {
                     'Submit to App Store',
                     'Publish to Google Play',
                     'Manage app updates'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'CI/CD & Release Automation',
+                  description: 'Automate builds, signing, and releases for consistent delivery.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '1-2 weeks',
+                  order: 1,
+                  topics: ['EAS Build', 'Fastlane', 'Versioning', 'Environment Variables'],
+                  prerequisites: ['App Store Deployment'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Expo EAS Build',
+                      url: 'https://docs.expo.dev/build/introduction/',
+                      description: 'Automated builds'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Fastlane',
+                      url: 'https://docs.fastlane.tools/',
+                      description: 'Release automation'
+                    }
+                  ],
+                  checkpoints: [
+                    'Automate iOS/Android builds',
+                    'Manage signing keys safely',
+                    'Create a release checklist/runbook',
+                    'Ship updates reliably'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Monitoring & Crash Reporting',
+                  description: 'Track crashes and performance issues after release.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '1 week',
+                  order: 2,
+                  topics: ['Sentry', 'Crashlytics', 'Analytics', 'Performance Monitoring'],
+                  prerequisites: ['App Store Deployment'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Sentry React Native',
+                      url: 'https://docs.sentry.io/platforms/react-native/',
+                      description: 'Crash reporting + performance'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Firebase Crashlytics',
+                      url: 'https://firebase.google.com/docs/crashlytics',
+                      description: 'Production crash reports'
+                    }
+                  ],
+                  checkpoints: [
+                    'Capture crashes with stack traces',
+                    'Add key breadcrumbs for debugging',
+                    'Track performance regressions',
+                    'Set up alerting for spikes'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'App Security Basics',
+                  description: 'Protect user data and reduce common mobile security risks.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '1 week',
+                  order: 3,
+                  topics: ['Secure Storage', 'TLS', 'API Keys', 'OWASP Mobile'],
+                  prerequisites: ['App Store Deployment'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'OWASP Mobile Top 10',
+                      url: 'https://owasp.org/www-project-mobile-top-10/',
+                      description: 'Mobile security risks'
+                    }
+                  ],
+                  checkpoints: [
+                    'Store secrets in secure storage',
+                    'Avoid hardcoding API keys',
+                    'Enforce HTTPS and certificate validation',
+                    'Review OWASP Mobile Top 10 risks'
                   ],
                   relatedCheatsheets: [],
                   relatedDSA: [],
@@ -3895,6 +4428,38 @@ async function seedRoadmaps() {
                     'Know deployment types',
                     'Compare cloud providers',
                     'Learn cloud benefits'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Networking Fundamentals',
+                  description: 'Build strong foundations in networking for cloud architecture.',
+                  difficulty: 'Beginner',
+                  estimatedTime: '2-3 weeks',
+                  order: 1,
+                  topics: ['TCP/IP', 'CIDR', 'Subnets', 'NAT', 'DNS', 'HTTP/HTTPS'],
+                  prerequisites: ['Cloud Computing Concepts'],
+                  resources: [
+                    {
+                      type: 'video',
+                      title: 'Computer Networking Course',
+                      url: 'https://www.youtube.com/watch?v=qiQR5rTSshw',
+                      description: 'Networking fundamentals'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'AWS VPC Concepts',
+                      url: 'https://docs.aws.amazon.com/vpc/latest/userguide/what-is-amazon-vpc.html',
+                      description: 'Cloud networking basics'
+                    }
+                  ],
+                  checkpoints: [
+                    'Understand subnets and routing',
+                    'Design CIDR ranges',
+                    'Explain NAT vs public routing',
+                    'Troubleshoot DNS and connectivity'
                   ],
                   relatedCheatsheets: [],
                   relatedDSA: [],
@@ -3972,6 +4537,102 @@ async function seedRoadmaps() {
                   relatedCheatsheets: [],
                   relatedDSA: [],
                   relatedInterviews: []
+                },
+                {
+                  title: 'AWS Databases & Messaging',
+                  description: 'Use managed databases and messaging for scalable systems.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '2-3 weeks',
+                  order: 2,
+                  topics: ['RDS', 'DynamoDB', 'ElastiCache', 'SQS', 'SNS'],
+                  prerequisites: ['AWS Compute & Storage'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Amazon RDS',
+                      url: 'https://docs.aws.amazon.com/rds/',
+                      description: 'Managed relational databases'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Amazon SQS',
+                      url: 'https://docs.aws.amazon.com/sqs/',
+                      description: 'Managed queues'
+                    }
+                  ],
+                  checkpoints: [
+                    'Choose the right database type',
+                    'Design scaling strategies',
+                    'Use queues for async workloads',
+                    'Implement retries and DLQs'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Observability with CloudWatch',
+                  description: 'Monitor logs/metrics and create alerts for reliability.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '1-2 weeks',
+                  order: 3,
+                  topics: ['CloudWatch Logs', 'Metrics', 'Alarms', 'Dashboards', 'X-Ray'],
+                  prerequisites: ['AWS Networking & Security'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Amazon CloudWatch',
+                      url: 'https://docs.aws.amazon.com/cloudwatch/',
+                      description: 'Logs, metrics, and alarms'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'AWS X-Ray',
+                      url: 'https://docs.aws.amazon.com/xray/',
+                      description: 'Distributed tracing'
+                    }
+                  ],
+                  checkpoints: [
+                    'Centralize logs',
+                    'Create actionable dashboards',
+                    'Set alarms for key SLOs',
+                    'Trace requests end-to-end'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Serverless & Event-Driven Architecture',
+                  description: 'Build scalable systems with events and managed compute.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '2-3 weeks',
+                  order: 4,
+                  topics: ['Lambda', 'API Gateway', 'EventBridge', 'Step Functions'],
+                  prerequisites: ['AWS Compute & Storage'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'AWS Lambda',
+                      url: 'https://docs.aws.amazon.com/lambda/',
+                      description: 'Serverless compute'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Amazon EventBridge',
+                      url: 'https://docs.aws.amazon.com/eventbridge/',
+                      description: 'Event bus and routing'
+                    }
+                  ],
+                  checkpoints: [
+                    'Design event-driven workflows',
+                    'Understand cold starts and scaling',
+                    'Build idempotent handlers',
+                    'Handle retries and failures safely'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
                 }
               ]
             }
@@ -3989,7 +4650,7 @@ async function seedRoadmaps() {
                   estimatedTime: '3-4 weeks',
                   order: 0,
                   topics: ['HCL', 'Modules', 'State', 'Providers'],
-                  prerequisites: ['AWS Core Services'],
+                  prerequisites: ['AWS Networking & Security'],
                   resources: [
                     {
                       type: 'documentation',
@@ -4009,6 +4670,192 @@ async function seedRoadmaps() {
                     'Manage state',
                     'Create modules',
                     'Deploy infrastructure'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'CI/CD for Infrastructure',
+                  description: 'Automate Terraform plans/applies with safe review and policies.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '1-2 weeks',
+                  order: 1,
+                  topics: ['GitHub Actions', 'Terraform Plan/Apply', 'Remote State', 'Policies'],
+                  prerequisites: ['Terraform'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'GitHub Actions',
+                      url: 'https://docs.github.com/en/actions',
+                      description: 'CI/CD workflows'
+                    },
+                    {
+                      type: 'documentation',
+                      title: 'Terraform Cloud',
+                      url: 'https://developer.hashicorp.com/terraform/cloud-docs',
+                      description: 'Remote state and runs'
+                    }
+                  ],
+                  checkpoints: [
+                    'Run terraform fmt/validate in CI',
+                    'Create plan previews for PRs',
+                    'Protect applies with approvals',
+                    'Use remote state and locking'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                }
+              ]
+            }
+          },
+          {
+            title: 'Phase 3: Containers & Kubernetes',
+            description: 'Run workloads reliably using containers and orchestration',
+            order: 3,
+            steps: {
+              create: [
+                {
+                  title: 'Docker for Cloud Engineers',
+                  description: 'Build and run containerized services and understand registries.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '1-2 weeks',
+                  order: 0,
+                  topics: ['Docker', 'Images', 'Containers', 'Registries', 'Networking'],
+                  prerequisites: ['Terraform'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Docker Documentation',
+                      url: 'https://docs.docker.com/',
+                      description: 'Official Docker docs'
+                    }
+                  ],
+                  checkpoints: [
+                    'Build images with Dockerfile',
+                    'Run containers with ports/volumes',
+                    'Push images to a registry',
+                    'Troubleshoot containers and logs'
+                  ],
+                  relatedCheatsheets: ['docker'],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Kubernetes Fundamentals',
+                  description: 'Learn pods, deployments, services, and basic cluster operations.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '2-3 weeks',
+                  order: 1,
+                  topics: ['Pods', 'Deployments', 'Services', 'Ingress', 'Helm'],
+                  prerequisites: ['Docker for Cloud Engineers'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Kubernetes Documentation',
+                      url: 'https://kubernetes.io/docs/home/',
+                      description: 'Official Kubernetes docs'
+                    },
+                    {
+                      type: 'course',
+                      title: 'Kubernetes Basics',
+                      url: 'https://kubernetes.io/docs/tutorials/kubernetes-basics/',
+                      description: 'Hands-on tutorials'
+                    }
+                  ],
+                  checkpoints: [
+                    'Deploy workloads (Deployment/Service)',
+                    'Manage config and secrets',
+                    'Roll out updates safely',
+                    'Understand networking (Ingress)'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'EKS (Managed Kubernetes)',
+                  description: 'Deploy production clusters with EKS and integrate AWS services.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '2-3 weeks',
+                  order: 2,
+                  topics: ['EKS', 'ECR', 'IAM', 'Autoscaling', 'Ingress Controllers'],
+                  prerequisites: ['Kubernetes Fundamentals'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'Amazon EKS',
+                      url: 'https://docs.aws.amazon.com/eks/',
+                      description: 'EKS documentation'
+                    }
+                  ],
+                  checkpoints: [
+                    'Provision an EKS cluster',
+                    'Deploy workloads with Helm',
+                    'Configure autoscaling and upgrades',
+                    'Integrate IAM securely'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                }
+              ]
+            }
+          },
+          {
+            title: 'Phase 4: Reliability & Cost',
+            description: 'Design for resilience, security, and cost efficiency',
+            order: 4,
+            steps: {
+              create: [
+                {
+                  title: 'High Availability & Disaster Recovery',
+                  description: 'Design multi-AZ/multi-region systems with backups and DR plans.',
+                  difficulty: 'Advanced',
+                  estimatedTime: '2-3 weeks',
+                  order: 0,
+                  topics: ['Multi-AZ', 'Multi-region', 'Backups', 'RTO/RPO', 'Failover'],
+                  prerequisites: ['AWS Networking & Security'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'AWS Well-Architected Framework',
+                      url: 'https://docs.aws.amazon.com/wellarchitected/latest/framework/welcome.html',
+                      description: 'Reliability and best practices'
+                    }
+                  ],
+                  checkpoints: [
+                    'Define RTO/RPO for services',
+                    'Plan backups and restores',
+                    'Design failover strategies',
+                    'Test DR procedures regularly'
+                  ],
+                  relatedCheatsheets: [],
+                  relatedDSA: [],
+                  relatedInterviews: []
+                },
+                {
+                  title: 'Cost Optimization & Well-Architected',
+                  description: 'Reduce cloud spend while improving architecture decisions.',
+                  difficulty: 'Intermediate',
+                  estimatedTime: '1-2 weeks',
+                  order: 1,
+                  topics: ['Tagging', 'Budgets', 'Cost Explorer', 'Reserved Instances', 'Right-sizing'],
+                  prerequisites: ['High Availability & Disaster Recovery'],
+                  resources: [
+                    {
+                      type: 'documentation',
+                      title: 'AWS Cost Management',
+                      url: 'https://docs.aws.amazon.com/cost-management/',
+                      description: 'Cost tools and guidance'
+                    }
+                  ],
+                  checkpoints: [
+                    'Tag resources consistently',
+                    'Set budgets and alerts',
+                    'Right-size compute/storage',
+                    'Review architecture periodically'
                   ],
                   relatedCheatsheets: [],
                   relatedDSA: [],

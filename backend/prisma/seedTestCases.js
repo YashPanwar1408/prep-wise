@@ -1,7 +1,24 @@
 ﻿'use strict';
 
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+const vm = require('vm');
+
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+let prisma;
+
+function getPrisma() {
+  if (!prisma) prisma = new PrismaClient();
+  return prisma;
+}
+
+async function disconnectPrisma() {
+  if (!prisma) return;
+  await prisma.$disconnect();
+  prisma = undefined;
+}
 
 // =============================================================================
 // TEST CASE LIBRARY
@@ -23,6 +40,8 @@ const prisma = new PrismaClient();
 //   1. Add a key matching the problem's DB slug.
 //   2. Provide at least 3 entries (more is better — aim for 60-70).
 //   3. First 3 entries should be the most representative / visible examples.
+//   4. You may repeat an existing slug key later in this file — cases are
+//      merged (appended) in source order to avoid silent overwrites.
 //
 // Example:
 //   'two-sum': [
@@ -33,7 +52,8 @@ const prisma = new PrismaClient();
 //   ],
 // =============================================================================
 
-const TEST_CASE_LIBRARY = {
+function getTestCaseLibrarySource() {
+  return {
 
   // =========================================================================
   // BATCH 1 — 20 Easy Problems (sorted difficulty ascending)
@@ -1744,7 +1764,7 @@ const TEST_CASE_LIBRARY = {
   'product-of-array-except-self': [
     // samples
     { input: '[1,2,3,4]',         output: '[24,12,8,6]'   },
-    { input: '[-1,1,0,-3,3]',     output: '[0,-3,9,0,0]'  },
+    { input: '[-1,1,0,-3,3]',     output: '[0,0,9,0,0]'   },
     { input: '[1,1]',             output: '[1,1]'          },
     // basic
     { input: '[2,3]',             output: '[3,2]'          },
@@ -1762,11 +1782,11 @@ const TEST_CASE_LIBRARY = {
     { input: '[1,1,1,1]',         output: '[1,1,1,1]'      },
     { input: '[1,1,1]',           output: '[1,1,1]'        },
     // negatives
-    { input: '[-1,-2,-3,-4]',     output: '[-24,12,-8,6]'  },
+    { input: '[-1,-2,-3,-4]',     output: '[-24,-12,-8,-6]' },
     { input: '[-1,1]',            output: '[1,-1]'         },
     { input: '[-2,-3]',           output: '[-3,-2]'        },
     // mixed
-    { input: '[-1,1,-1,1]',       output: '[1,-1,1,-1]'    },
+    { input: '[-1,1,-1,1]',       output: '[-1,1,-1,1]'    },
     { input: '[2,-1,3,-2]',       output: '[6,-12,4,-6]'   },
     // large values
     { input: '[1,2,3,4,5]',       output: '[120,60,40,30,24]' },
@@ -1794,7 +1814,7 @@ const TEST_CASE_LIBRARY = {
     { input: '[2,0,4]',           output: '[0,8,0]'         },
     { input: '[3,0,0]',           output: '[0,0,0]'         },
     { input: '[-1,-2]',           output: '[-2,-1]'         },
-    { input: '[-3,-2,-1]',        output: '[2,-3,6]'        },
+    { input: '[-3,-2,-1]',        output: '[2,3,6]'         },
     { input: '[1,2,0,4]',         output: '[0,0,8,0]'       },
     { input: '[5,1,4,2]',         output: '[8,40,10,20]'    },
     { input: '[6,2,3]',           output: '[6,18,12]'       },
@@ -14646,7 +14666,143 @@ const TEST_CASE_LIBRARY = {
     { input: '"a*b*c*d*e*"',       output: '""'        },
   ],
 
-};
+  };
+}
+
+function findMatchingClosingBracketIndex(text, openIndex) {
+  if (text[openIndex] !== '[') {
+    throw new Error(`Expected '[' at index ${openIndex} (got ${JSON.stringify(text[openIndex])})`);
+  }
+
+  let depth = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+
+  for (let i = openIndex; i < text.length; i++) {
+    const ch = text[i];
+    const next = i + 1 < text.length ? text[i + 1] : '';
+
+    if (inLineComment) {
+      if (ch === '\n') inLineComment = false;
+      continue;
+    }
+    if (inBlockComment) {
+      if (ch === '*' && next === '/') {
+        inBlockComment = false;
+        i++;
+      }
+      continue;
+    }
+    if (inSingle) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === "'") inSingle = false;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === '"') inDouble = false;
+      continue;
+    }
+    if (inTemplate) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === '`') inTemplate = false;
+      continue;
+    }
+
+    if (ch === '/' && next === '/') {
+      inLineComment = true;
+      i++;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      inBlockComment = true;
+      i++;
+      continue;
+    }
+    if (ch === "'") {
+      inSingle = true;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      continue;
+    }
+    if (ch === '`') {
+      inTemplate = true;
+      continue;
+    }
+
+    if (ch === '[') {
+      depth++;
+      continue;
+    }
+    if (ch === ']') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+
+  return -1;
+}
+
+function buildTestCaseLibraryFromSource(sourceFn) {
+  const source = sourceFn.toString();
+  const library = {};
+
+  const keyPattern = /^\s*'([^']+)'\s*:\s*\[/gm;
+  let match;
+  while ((match = keyPattern.exec(source)) !== null) {
+    const slug = match[1];
+    const arrayStart = match.index + match[0].length - 1;
+    const arrayEnd = findMatchingClosingBracketIndex(source, arrayStart);
+
+    if (arrayEnd === -1) {
+      throw new Error(`Could not find closing ']' for test case array of slug "${slug}"`);
+    }
+
+    const arrayText = source.slice(arrayStart, arrayEnd + 1);
+
+    let casesArray;
+    try {
+      casesArray = vm.runInNewContext(arrayText, {}, { timeout: 30000 });
+    } catch (err) {
+      throw new Error(`Failed evaluating test case array for slug "${slug}": ${err.message}`);
+    }
+
+    if (!Array.isArray(casesArray)) {
+      throw new TypeError(`Test cases for slug "${slug}" did not evaluate to an array`);
+    }
+
+    if (!library[slug]) library[slug] = [];
+    library[slug].push(...casesArray);
+
+    // Continue scanning after this array (avoid accidental matches within it)
+    keyPattern.lastIndex = arrayEnd + 1;
+  }
+
+  if (Object.keys(library).length === 0) {
+    throw new Error(
+      'No test cases parsed from getTestCaseLibrarySource(). ' +
+      'Check key formatting and the keyPattern regex.'
+    );
+  }
+
+  return library;
+}
+
+const TEST_CASE_LIBRARY = buildTestCaseLibraryFromSource(getTestCaseLibrarySource);
 
 
 
@@ -14677,7 +14833,7 @@ async function insertTestCases(problemSlug, casesArray) {
   const SAMPLE_COUNT = 3;
 
   // 1. Resolve problem ID from slug ─────────────────────────────────────────
-  const problem = await prisma.problem.findUnique({
+  const problem = await getPrisma().problem.findUnique({
     where:  { slug: problemSlug },
     select: { id: true },
   });
@@ -14688,7 +14844,7 @@ async function insertTestCases(problemSlug, casesArray) {
   }
 
   // 2. Wipe stale test cases ─────────────────────────────────────────────────
-  await prisma.testCase.deleteMany({ where: { problemId: problem.id } });
+  await getPrisma().testCase.deleteMany({ where: { problemId: problem.id } });
 
   // 3. Validate & build records ─────────────────────────────────────────────
   const records = casesArray.map((tc, index) => {
@@ -14714,7 +14870,7 @@ async function insertTestCases(problemSlug, casesArray) {
   });
 
   // 4. Bulk insert ───────────────────────────────────────────────────────────
-  const { count } = await prisma.testCase.createMany({ data: records });
+  const { count } = await getPrisma().testCase.createMany({ data: records });
 
   return { slug: problemSlug, inserted: count };
 }
@@ -14738,10 +14894,10 @@ async function normalizeArrayOutputTestCases() {
   let fixed = 0;
 
   for (const slug of NORMALIZE_SORT_SLUGS) {
-    const problem = await prisma.problem.findUnique({ where: { slug } });
+    const problem = await getPrisma().problem.findUnique({ where: { slug } });
     if (!problem) continue;
 
-    const testCases = await prisma.testCase.findMany({ where: { problemId: problem.id } });
+    const testCases = await getPrisma().testCase.findMany({ where: { problemId: problem.id } });
     for (const tc of testCases) {
       let expectedValue;
       try {
@@ -14757,7 +14913,7 @@ async function normalizeArrayOutputTestCases() {
       const normalized = JSON.stringify(sortPrimitiveArray(expectedValue));
       if (normalized === tc.output) continue;
 
-      await prisma.testCase.update({ where: { id: tc.id }, data: { output: normalized } });
+      await getPrisma().testCase.update({ where: { id: tc.id }, data: { output: normalized } });
       fixed++;
     }
   }
@@ -14766,11 +14922,11 @@ async function normalizeArrayOutputTestCases() {
 }
 
 async function fixTopKFrequentElementsTestCases() {
-  const problem = await prisma.problem.findUnique({ where: { slug: 'top-k-frequent-elements' } });
+  const problem = await getPrisma().problem.findUnique({ where: { slug: 'top-k-frequent-elements' } });
   if (!problem) return 0;
 
   let fixed = 0;
-  const testCases = await prisma.testCase.findMany({ where: { problemId: problem.id } });
+  const testCases = await getPrisma().testCase.findMany({ where: { problemId: problem.id } });
 
   for (const tc of testCases) {
     const lines = tc.input.trim().split('\n').filter(Boolean);
@@ -14799,7 +14955,7 @@ async function fixTopKFrequentElementsTestCases() {
     const expected = JSON.stringify(sorted.slice(0, k).sort((a, b) => a - b));
     if (expected === tc.output) continue;
 
-    await prisma.testCase.update({ where: { id: tc.id }, data: { output: expected } });
+    await getPrisma().testCase.update({ where: { id: tc.id }, data: { output: expected } });
     fixed++;
   }
 
@@ -14816,8 +14972,10 @@ async function main() {
   console.log('======================================================');
   console.log('');
 
+  const MIN_TOTAL_PER_PROBLEM = parseInt(process.env.MIN_TEST_CASES_PER_PROBLEM || '20', 10);
+
   // Collect all DB slugs for cross-referencing
-  const dbProblems = await prisma.problem.findMany({ select: { slug: true } });
+  const dbProblems = await getPrisma().problem.findMany({ select: { slug: true } });
   const dbSlugs    = new Set(dbProblems.map((p) => p.slug));
   const libSlugs   = Object.keys(TEST_CASE_LIBRARY);
 
@@ -14830,6 +14988,14 @@ async function main() {
   for (const slug of libSlugs) {
     if (!dbSlugs.has(slug)) {
       console.warn(`  ⚠  Library slug "${slug}" has no matching DB problem`);
+    }
+
+    const count = Array.isArray(TEST_CASE_LIBRARY[slug]) ? TEST_CASE_LIBRARY[slug].length : 0;
+    if (count > 0 && count < MIN_TOTAL_PER_PROBLEM) {
+      console.warn(
+        `  ⚠  "${slug}" has only ${count} test cases (recommended ≥ ${MIN_TOTAL_PER_PROBLEM}). ` +
+        'Add more cases to TEST_CASE_LIBRARY to improve coverage.'
+      );
     }
   }
   for (const slug of dbSlugs) {
@@ -14880,9 +15046,13 @@ async function main() {
   console.log('');
 }
 
-main()
-  .catch((err) => {
-    console.error('Fatal:', err);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+module.exports = { TEST_CASE_LIBRARY };
+
+if (require.main === module) {
+  main()
+    .catch((err) => {
+      console.error('Fatal:', err);
+      process.exit(1);
+    })
+    .finally(() => disconnectPrisma());
+}
