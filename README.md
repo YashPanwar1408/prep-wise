@@ -62,7 +62,8 @@ graph TD
     
     AppRouter -->|GraphQL/REST| Clerk
     ServerActions -->|Connection Pool| NeonDB
-    APIRoutes -->|Proxy| Backend API Layer
+    APIRoutes -->|Proxy| CodeRunner
+    APIRoutes -->|Proxy| ContentAPI
     APIRoutes -->|Fast Inference| Groq
     
     VapiSDK --> Deepgram
@@ -211,3 +212,5 @@ docker run -p 5000:5000 --env-file ./backend/.env prepwise-backend
 - **AI Not Listening / Disconnecting immediately**: Caused by WebRTC microphone conflicts. Ensure you aren't manually calling `getUserMedia` alongside Stream Video SDK. Check VAPI Public Key "Transient Assistant" permissions.
 - **Prisma "Too many connections"**: Ensure you are using the Neon **Pooled** connection string (`?pgbouncer=true` or pooler endpoint), NOT the direct connection string.
 - **Judge0 Timeout**: If self-hosting, ensure your Docker VM has enough CPU resources allocated, or increase `JUDGE0_CPU_LIMIT`.
+
+## Made with ❤️ by Yash Panwar
