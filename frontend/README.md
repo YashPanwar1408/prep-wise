@@ -1,123 +1,173 @@
-# 🖥️ PrepWise Frontend Architecture
+# 🖥️ PrepWise Frontend Architecture Deep Dive
 
-> **Next.js 16 App Router** · Server Components · Server Actions · Zustand · Tailwind v4
+> **Next.js 16 App Router** · React Server Components (RSC) · Server Actions · Zustand · Tailwind CSS v4 · Framer Motion
 
-The PrepWise frontend is a massive, highly-interactive web application that orchestrates complex UI states, WebRTC video streams, WebSocket AI audio, and real-time code execution—all while maintaining peak performance via React Server Components (RSC).
+The PrepWise frontend is a massive, highly-interactive web application. It is engineered to orchestrate complex user interfaces, WebRTC video streams, WebSocket-based AI audio, real-time code execution, and persistent learning management—all while maintaining absolute peak performance, zero-layout-shift, and excellent SEO via React Server Components (RSC).
 
 ---
 
-## 📐 Architecture Overview
+## 📐 In-Depth Frontend Architecture
+
+Our architecture heavily leverages the paradigms introduced in Next.js 14/15/16. We aggressively separate concern between what happens on the server and what happens in the client's browser.
 
 ```mermaid
 graph TD
-    subgraph "Next.js App Router"
-        Pages["Page Components (RSC)"]
-        ClientComps["Interactive Components ('use client')"]
-        ServerActions["Server Actions"]
-        API["Edge API Routes"]
+    subgraph "Next.js App Router (Server-Side)"
+        RSC["React Server Components (RSC)"]
+        Layouts["Root & Nested Layouts"]
+        ServerActions["Server Actions (Data Mutations)"]
+        EdgeAPI["Edge API Routes"]
     end
 
-    subgraph "State Management"
-        Zustand["Zustand Stores (Resume Builder)"]
-        StreamCtx["Stream Video Context"]
-        ReactState["Local Hooks"]
+    subgraph "Client Boundaries ('use client')"
+        Monaco["Monaco Editor Integration"]
+        Zustand["Zustand Resume Store"]
+        StreamSDK["GetStream Video UI"]
+        VapiHooks["useVapi (Audio WebSockets)"]
+        InteractiveUI["Modals, Dropdowns, Navbars"]
     end
 
-    subgraph "External Integrations"
-        Vapi["useVapi Hook (Voice AI)"]
-        PDFJS["PDF.js Extractor (Web Worker)"]
-        Monaco["Monaco Editor"]
+    subgraph "External Integrations (Browser Native)"
+        WebWorker["pdf.js Web Worker"]
+        WebRTC["WebRTC Media Devices"]
     end
 
-    Pages --> ClientComps
-    ClientComps --> ServerActions
-    ClientComps --> Zustand
-    ClientComps --> Vapi
-    ClientComps --> Monaco
+    RSC -->|Passes Serialized Data| InteractiveUI
+    RSC -->|Wraps| Layouts
+    InteractiveUI -->|Triggers| ServerActions
+    InteractiveUI -->|Reads/Writes| Zustand
+    
+    Monaco -.->|Code String| EdgeAPI
+    VapiHooks -.-> WebRTC
+    StreamSDK -.-> WebRTC
+    WebWorker -.->|Extracted Text| ServerActions
 ```
 
-### Why Next.js 16 App Router?
-- **Zero-Bundle Static Content**: Career roadmaps, cheatsheets, and DSA problem descriptions are rendered entirely on the server. No React JS is shipped to the client for these reading-heavy pages.
-- **Server Actions**: Form submissions (like saving a resume) bypass traditional API route boilerplate, ensuring end-to-end type safety with Prisma.
+### 1. The Server Component Advantage
+Any page that is purely informational (like the `dsa/[slug]` problem descriptions, `/roadmaps`, and `/cheatsheets`) is rendered entirely on the server. **Zero JavaScript** is shipped to the client for these reading-heavy pages. The database is queried directly within the `page.tsx` file, eliminating the need for `useEffect` data fetching or loading spinners.
+
+### 2. State Management Philosophy
+We use two distinct state management strategies depending on the feature:
+- **React State / Hooks**: Used for localized component states (e.g., dropdowns, modals, Monaco editor input).
+- **Zustand**: Used exclusively for the massive **Resume Builder** feature. A resume JSON object contains deeply nested arrays (Education, Experience, Projects). Passing this via React Context would cause the entire application tree to re-render on every keystroke. Zustand allows components to subscribe to only specific slices of the state.
 
 ---
 
-## 🧩 Core Modules Breakdown
+## 📁 Complete Frontend File & Folder Tree
 
-### 1. AI Interview Room (`/app/interview/ai/room/[id]`)
-**Purpose**: The flagship feature. Orchestrates Stream Video SDK and VAPI Voice AI.
-- **Request Flow**:
-  1. User enters room. Stream `Call` object is initialized.
-  2. Component waits 1500ms for Stream to claim devices (prevents Windows `NotFoundError` race conditions).
-  3. Fetches dynamic VAPI configuration payload built from user's parsed Resume.
-  4. Mounts `AIParticipantCard` and binds to `useVapi` hook to display real-time speaking waveforms and live transcripts.
-- **Performance**: Streams are kept out of React state to prevent cascading re-renders. Video grids use CSS grid implementations provided by Stream SDK.
+Below is the exhaustive layout of the `frontend` directory, detailing exactly what drives the application.
 
-### 2. Resume Parsing Pipeline (`/app/resume`)
-**Purpose**: Extracts text from PDFs locally, then structures it via LLMs.
-- **Request Flow**:
-  1. `pdf.js` reads the file natively in the browser (zero upload latency, completely private).
-  2. Extracted raw text is passed to Server Action `parseResumeWithGrok()`.
-  3. Groq's LLaMA 3 processes the text into a strict Zod-validated JSON structure in < 2 seconds.
-  4. JSON hydrates the Zustand store (`useResumeStore`).
-- **Tech Purpose**: Zustand allows multi-step form editing across deeply nested components without React Context re-render hell.
-
-### 3. Code Execution Sandbox (`/app/dsa`)
-**Purpose**: Interactive LeetCode-style environment.
-- **Components**: Integrates `@monaco-editor/react`.
-- **Flow**: User types code -> Debounced local state -> Click Run -> POST to backend `/api/execution/run` -> Backend Judge0 -> Returns Output/Error.
-
----
-
-## 🔐 Security & Auth
-
-PrepWise uses **Clerk** for robust authentication.
-
-- **Middleware (`middleware.ts`)**: Applies `clerkMiddleware()`. Any route not explicitly marked public throws a 401.
-- **Session Tokens**: Handled automatically in HTTP-only cookies.
-- **Route Protection**: Every API Route calls `await auth()`. If `userId` is missing, the request terminates immediately. All database reads are scoped (`where: { userId }`).
-
----
-
-## ⚡ Performance Optimizations
-
-1. **Lazy Loading**: Monaco editor and `pdf.js` worker are massive dependencies. They are dynamically imported (`next/dynamic`) only when the user navigates to the DSA or Resume pages.
-2. **Optimistic Updates**: Server Actions (like marking a topic complete) use React's `useOptimistic` to update UI instantly while the DB write happens asynchronously.
-3. **Image Optimization**: All avatars and assets use `next/image` for WebP compression and lazy loading.
-
----
-
-## 🪝 Custom Hooks Reference
-
-| Hook | Purpose | Interactions |
-|---|---|---|
-| `useVapi.ts` | Orchestrates VAPI Web SDK. | Handles WebSockets, manages `isSpeaking` state for UI animations, tracks `transcript` array, provides `startCall` and `stopCall` methods. |
-| `useDebounce.ts` | Rate limits rapid inputs. | Used in Monaco editor to prevent excessive state updates while typing. |
-
----
-
-## ⚙️ Environment Configuration
-
-| Variable | Description | Required | Example |
-|---|---|---|---|
-| `DATABASE_URL` | Neon Pooled Postgres URL | ✅ | `postgresql://neondb_owner...` |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk Auth Client Key | ✅ | `pk_test_...` |
-| `CLERK_SECRET_KEY` | Clerk Auth Server Key | ✅ | `sk_test_...` |
-| `GROK_API_KEY` | Groq LPU Inference Key | ✅ | `gsk_...` |
-| `NEXT_PUBLIC_VAPI_API_KEY` | VAPI Client Key (Transient enabled) | ✅ | `...` |
-| `VAPI_API_KEY` | VAPI Server Key (for Transcripts) | ✅ | `...` |
-| `NEXT_PUBLIC_STREAM_API_KEY` | GetStream Client Key | ✅ | `...` |
-| `STREAM_SECRET` | GetStream Server Token Signer | ✅ | `...` |
-| `NEXT_PUBLIC_API_URL` | Backend execution endpoint | ✅ | `http://localhost:5000/api` |
+```text
+d:\prep-wise\frontend\
+├── app/                                  # Next.js App Router Directory
+│   ├── (auth)/                           # Route group: Clerk Auth Overlays
+│   │   ├── sign-in/[[...sign-in]]/       # Clerk Sign-in Page
+│   │   └── sign-up/[[...sign-up]]/       # Clerk Sign-up Page
+│   ├── api/                              # Next.js API Routes (Serverless/Edge)
+│   │   └── webhooks/                     # Listens for Clerk/Stripe webhooks
+│   ├── dsa/                              # The Data Structures & Algo Sandbox
+│   │   ├── [slug]/page.tsx               # Dynamic RSC: Fetches specific problem
+│   │   └── page.tsx                      # RSC: Lists the Master 250 problems
+│   ├── interview/                        # AI Interview Setup & Execution
+│   │   ├── ai/room/[id]/page.tsx         # The main WebRTC & VAPI Meeting Room
+│   │   └── setup/page.tsx                # Device testing before interview starts
+│   ├── resume/                           # AI ATS and Visual Resume Builder
+│   │   └── page.tsx                      # Houses the Drag & Drop builder UI
+│   ├── learn/                            # Video/Course module viewer
+│   ├── roadmaps/                         # Career progression trackers
+│   ├── cheatsheets/                      # Static Markdown rendering pages
+│   ├── layout.tsx                        # Global layout. Wraps Providers (Clerk, Theme)
+│   ├── page.tsx                          # The Landing Page (Marketing, Hero, Pricing)
+│   └── globals.css                       # Tailwind v4 injection & CSS variables
+│
+├── components/                           # Reusable UI Architecture
+│   ├── dsa/                              # Code Execution Components
+│   │   ├── CodeEditor.tsx                # Monaco editor wrapper with debouncing
+│   │   └── TerminalOutput.tsx            # Formats Judge0 stdout/stderr like a real CLI
+│   ├── interview/                        # Video & Audio Components
+│   │   ├── AIParticipantCard.tsx         # Renders dynamic waveforms based on VAPI volume
+│   │   ├── LiveTranscript.tsx            # Maps over VAPI websocket messages in real-time
+│   │   └── VideoGrid.tsx                 # Wraps Stream SDK layouts
+│   ├── resume/                           # Form components mapping to Zustand
+│   │   ├── ResumePreview.tsx             # The live A4 rendering of the JSON state
+│   │   └── ExperienceForm.tsx            # Deeply nested field arrays
+│   ├── ui/                               # Base Design System (shadcn/ui inspired)
+│   │   ├── button.tsx, card.tsx, etc.    # Highly reusable, accessible primitives
+│   └── MarkdownRenderer.tsx              # Component to safely parse DB-stored markdown
+│
+├── hooks/                                # Custom React Hooks
+│   ├── useVapi.ts                        # The core of the AI Interview. Manages WebSocket states.
+│   ├── useDebounce.ts                    # Rate limits user input (used heavily in Monaco & Search)
+│   └── use-mobile.ts                     # Detects viewport for conditional responsive rendering
+│
+├── lib/                                  # Core Utilities and Integrations
+│   ├── ai/                               # LLM Clients
+│   │   └── grok.ts                       # Groq Cloud SDK initialization
+│   ├── pdf-extractor.ts                  # Extremely important: Client-side PDF.js parsing
+│   ├── stream-client.ts                  # Initializes GetStream for WebRTC video
+│   ├── vapi.ts                           # Generates dynamic payloads for VAPI Transient Assistants
+│   ├── prisma.ts                         # Singleton Prisma client to prevent connection exhaustion
+│   └── utils.ts                          # Tailwind `cn()` merger and standard JS utils
+│
+├── actions/                              # Server Actions (Secure Next.js Mutations)
+│   └── resume.actions.ts                 # Mutates the Resume table in the database safely
+│
+├── prisma/                               # Prisma Client
+│   └── schema.prisma                     # Shared symbolic link to the backend schema
+├── middleware.ts                         # Clerk Auth Protection (intercepts every request)
+├── next.config.ts                        # Webpack & Next.js config (handles Monaco/PDF workers)
+└── tailwind.config.ts                    # Tailwind theme, custom colors, animations
+```
 
 ---
 
-## 🩺 Troubleshooting
+## 🔄 The Complete Feature Workflows
 
-**Video is blinking or AI throws `daily-error: ejected`:**
-- **Cause**: Race condition between Stream Video SDK and VAPI trying to capture the microphone simultaneously on Windows.
-- **Fix**: Do NOT manually invoke `navigator.mediaDevices.getUserMedia` in your layout. Let the `MeetingRoom` 1.5s delay handle the sequential capture.
+### 1. Code Execution Pipeline (`/app/dsa`)
+This is the most technically complex UI flow outside of the AI interview.
+- **The Split View**: The UI uses a resizable panel architecture. The left panel is a Server Component that fetches the problem description, constraints, and hints from the database via Prisma.
+- **The Editor**: The right panel loads `@monaco-editor/react`. Because Monaco relies heavily on browser APIs (`window`, `navigator`), it is dynamically imported using `next/dynamic` with `ssr: false`.
+- **The Execution**: When the user clicks "Run" or "Submit", the frontend grabs the string contents of the editor and POSTs it to our Express backend.
+- **The Terminal**: The frontend awaits the backend response. It maps the returned `stdout` (or the diff of expected vs actual output) into a custom terminal UI component, updating the user's solved state optimistically.
 
-**Groq Parsing returns 429:**
-- **Cause**: Free tier token limits.
-- **Fix**: The application has graceful fallbacks. It will catch the error and fallback to the user's previously saved resume in the database automatically.
+### 2. Privacy-First Resume Builder & Groq ATS (`/app/resume`)
+We do not want the liability of storing unparsed, PII-heavy PDF files on our servers.
+- **Client Extraction**: When a user drops a PDF, `lib/pdf-extractor.ts` spawns a Web Worker using `pdf.js`. It reads the document *entirely in the browser* and extracts just the raw text string.
+- **AI Structuring**: This raw string is sent to a Next.js Server Action. The Server Action calls the **Groq API (LLaMA 3)** with a massive prompt instructing it to format the unstructured text into a highly specific JSON structure (Education, Experience, Skills).
+- **Zustand Hydration**: Groq returns the JSON in under 1.5 seconds. The Next.js server returns this to the client, which immediately injects it into the Zustand `useResumeStore`.
+- **The Builder UI**: The screen instantly populates. The left side forms and the right side A4-preview are both subscribed to the Zustand store, resulting in a buttery smooth editing experience.
+
+### 3. WebRTC & WebSocket AI Interviews (`/app/interview`)
+This orchestrates two massive external libraries simultaneously without crashing the browser.
+- **The Device Race Condition**: Both Stream Video SDK and VAPI want control of the user's microphone. We explicitly handle this by initializing Stream *first*, and then passing the active media stream to VAPI.
+- **The VAPI Hook**: `useVapi.ts` connects via WebSocket. We pass a massive JSON object to VAPI known as a "Transient Assistant Payload". We dynamically inject the user's resume into the `system_prompt` of this payload.
+- **The Visuals**: The `AIParticipantCard` listens to the `volumeLevel` emitted by the VAPI hook. We use Framer Motion to tie this volume integer to the CSS `scale` property of an SVG waveform, creating a realistic, responsive AI avatar.
+
+### 4. Roadmaps & Next.js Caching (`/app/roadmaps`)
+- Roadmaps contain hundreds of nodes. Rendering this client-side would be slow and bad for SEO.
+- We fetch the entire roadmap tree directly in the RSC `page.tsx`. Next.js automatically caches this query at the Edge.
+- When a user clicks "Mark Module Complete", we fire a Server Action. We use `revalidatePath('/roadmaps')` inside the action, which tells Next.js to purge the cache and immediately reflect the new progress in the UI.
+
+---
+
+## ⚡ Performance & Optimization Strategies
+
+1. **Lazy Loaded Heavy Dependencies**: 
+   Libraries like `@monaco-editor/react` (DSA) and `pdfjs-dist` (Resume Parsing) weigh several megabytes. They are lazy-loaded via `next/dynamic`. A user visiting the Marketing Page or Roadmaps downloads 0 bytes of these libraries.
+   
+2. **Next/Image & WebP**:
+   All user avatars and platform assets are routed through Next.js `<Image />` component, ensuring automatic WebP conversion and device-specific resizing.
+
+3. **Optimistic UI Updates**:
+   When toggling checkboxes in the Roadmap or clicking "Save" on the Resume, we use React's `useOptimistic` hook. The UI updates instantly for the user, while the actual Prisma database write happens silently in the background.
+
+---
+
+## 🩺 Troubleshooting Frontend Issues
+
+- **"NotFoundError: Requested device not found" during Interview**:
+  This happens if another application (like Zoom) is hogging the microphone, OR if VAPI and Stream SDK try to grab the mic at the exact same millisecond. The frontend relies on a deliberate `setTimeout` stagger in `Room.tsx` to prevent this.
+- **Monaco Editor not resizing properly**:
+  Monaco calculates its layout on mount. If placed inside a flex container that changes size, you must explicitly trigger Monaco's `editor.layout()` method via a `ResizeObserver` ref.
+- **Clerk Infinite Redirect Loops**:
+  Ensure your `middleware.ts` is not accidentally protecting the `/sign-in` route itself.

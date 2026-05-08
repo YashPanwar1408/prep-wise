@@ -1,137 +1,155 @@
-# ⚙️ PrepWise Backend Infrastructure
+# ⚙️ PrepWise Backend Infrastructure Deep Dive
 
-> **Node.js 18** · Express · Judge0 (Docker) · Prisma · PostgreSQL · Groq AI
+> **Node.js 18** · Express.js · Judge0 (Docker) · Prisma ORM · PostgreSQL · Groq AI LPUs
 
-The backend is a **highly-concurrent API service** tasked with handling computationally heavy operations: Sandboxed Code Execution, AI-driven ATS resume scoring, and serving complex relational learning content.
+The PrepWise Backend is a **highly-concurrent, stateless API Gateway and Processing Engine**. It is explicitly engineered to handle the most computationally expensive and security-sensitive operations of the platform: Executing untrusted code in Docker containers, streaming large texts through Groq AI for ATS scoring, and delivering massive relational datasets for learning roadmaps.
 
 ---
 
-## 🏛️ API Architecture
+## 🏛️ In-Depth Backend Architecture
 
-The backend follows a standard Controller-Service-Route pattern, ensuring business logic is decoupled from HTTP transport.
+The backend completely decouples HTTP transport from business logic using a strict **Route -> Controller -> Service** pattern. 
 
 ```mermaid
 graph LR
-    subgraph Request
-        HTTP["Express Routes"]
-    end
-    
-    subgraph Controllers
-        ExecCtrl["Execution Controller"]
-        ATSCtrl["ATS Controller"]
-        ContentCtrl["DSA/Learn Controller"]
-    end
-    
-    subgraph Services / AI
-        Judge0["Judge0 Sandbox Engine"]
-        ATSClass["ATSScorer Class"]
-        Groq["Groq LLM API"]
-    end
-    
-    subgraph Persistence
-        Prisma["Prisma Client"]
-        Neon[("Neon Postgres")]
+    subgraph Client Application
+        NextJS["Next.js Frontend"]
     end
 
-    HTTP --> ExecCtrl & ATSCtrl & ContentCtrl
-    ExecCtrl --> Judge0
-    ATSCtrl --> ATSClass
-    ATSClass --> Groq
-    ExecCtrl & ContentCtrl --> Prisma
-    Prisma --> Neon
+    subgraph Express Request Lifecycle
+        Router["Express Router (/api)"]
+        Middleware["Auth (Clerk Webhooks) & Zod Validation"]
+    end
+    
+    subgraph Core Business Controllers
+        ExecLogic["Code Execution Orchestrator"]
+        ATSLogic["ATS Semantic Analyzer"]
+        ContentLogic["DSA, Roadmaps, & Progress Manager"]
+    end
+    
+    subgraph External Compute Engines
+        Judge0["Judge0 Sandbox (Remote Docker)"]
+        GroqCloud["Groq Llama-3 (Fast Inference)"]
+    end
+    
+    subgraph Database & Persistence Layer
+        PrismaClient["Prisma Connection Pool"]
+        NeonDB[("Neon Serverless Postgres")]
+    end
+
+    NextJS -->|HTTP POST/GET| Middleware
+    Middleware --> Router
+    Router --> ExecLogic & ATSLogic & ContentLogic
+    
+    ExecLogic -.->|Payload Injection| Judge0
+    ATSLogic -.->|System Prompts| GroqCloud
+    
+    ExecLogic & ContentLogic & ATSLogic --> PrismaClient
+    PrismaClient <-->|PgBouncer Pool| NeonDB
 ```
 
 ---
 
-## 🏃 Code Execution Pipeline
+## 📁 Complete Backend File & Folder Tree
 
-The execution engine (`routes/execution.routes.js`) safely executes untrusted user code.
+Below is the exhaustive layout of the `backend` directory, detailing exactly what drives the server.
 
-### The Request Lifecycle
-1. Frontend POSTs `{ source_code, language_id, stdin }`.
-2. Backend intercepts and normalizes the payload.
-3. Submits via HTTP to Judge0 API (Internal or RapidAPI hosted).
-4. **Sandboxing**: Judge0 mounts the code inside an isolated Docker container based on the `language_id` (e.g., Python 3, Java 17).
-5. **Resource Limits**: The container is constrained by `cgroups` (e.g., 5 seconds CPU time, 128MB RAM).
-6. Execution completes. Judge0 returns `stdout`, `stderr`, and execution metadata.
-7. If it's a "Submit" request, the backend iterates through all test cases, compares outputs, and persists the result to the `Submission` table via Prisma.
-
-### Security Considerations
-- Never execute code directly on the host Node.js process.
-- Docker containers run without network privileges to prevent data exfiltration.
-- `ulimit` and `cgroups` prevent fork bombs and memory exhaustion attacks.
-
----
-
-## 🧠 AI ATS Scoring Engine
-
-The backend includes a sophisticated ATS (Applicant Tracking System) simulation engine (`ai/ats.js`).
-
-**Phase 1: Deterministic Keyword Parsing (Fast)**
-- Extracts text and compares against a massive internal dictionary of Action Verbs, Technical Skills, and Soft Skills using Regex. Calculates a base score.
-
-**Phase 2: LLM Narrative Analysis (Deep)**
-- Formats the resume and Job Description, and proxies it to **Groq**.
-- Groq evaluates the semantic fit, identifies missing implicit skills, and generates actionable, paragraph-length feedback in strict JSON format.
-- **Why Groq?** Speed. Resume analysis requires reading ~2,000 tokens. Traditional LLMs take 10+ seconds. Groq's LPU does it in ~1.5 seconds, avoiding HTTP timeouts.
-
----
-
-## 🗄️ Database Seeding & Migrations
-
-The backend repository manages the "source of truth" content via Prisma seeds.
-
-- `npm run seed:problems` - Injects 250+ FAANG-level DSA problems, starter code, solutions (Python/Java/C++), and test cases.
-- `npm run seed:roadmaps` - Generates highly structured, phase-by-phase learning paths for SWE, Frontend, Backend, etc.
-- `npm run seed:cheatsheets` - Loads Markdown-based technical reference sheets into the DB.
-
----
-
-## 🚀 Scaling & Concurrency
-
-- **Statelessness**: The Express app maintains zero local state. Sessions are managed by Clerk (JWTs), and data by Neon. You can scale from 1 to 100 Express instances instantaneously behind a Load Balancer.
-- **Database Pooling**: Connecting to serverless Postgres requires PgBouncer. The `DATABASE_URL` must use the pooled endpoint, preventing Node.js from exhausting database connections during traffic spikes.
-- **Graceful Shutdown**: Intercepts `SIGTERM` and `SIGINT` to call `prisma.$disconnect()` ensuring no dangling connections remain during deployment rollouts.
+```text
+d:\prep-wise\backend\
+├── ai/                                   # Artificial Intelligence Services
+│   └── ats.js                            # The sophisticated 2-pass ATS Engine. Combines deterministic Regex with Groq semantic analysis.
+│
+├── controllers/                          # Business Logic Handlers
+│   └── execution.controller.js           # Handles payload standardization, test-case fetching, and Judge0 proxying.
+│
+├── routes/                               # Express HTTP Endpoint Definitions
+│   ├── ats.js                            # POST /api/ats - Triggers resume scoring against a job description.
+│   ├── auth.js                           # POST /api/auth/webhook - Secure endpoint listening to Clerk to create/delete users.
+│   ├── cheatsheets.js                    # GET /api/cheatsheets - Delivers static markdown tech references.
+│   ├── dsa.js                            # GET /api/dsa - Fetches the Master 250 problems, optimal solutions, and categories.
+│   ├── execution.routes.js               # POST /api/execution/run - The entrypoint for all code sandbox requests.
+│   ├── judge.js                          # Webhook receiver for async Judge0 responses (if configured).
+│   ├── learn.js                          # Endpoints for serving specific course modules and video metadata.
+│   ├── progress.js                       # POST /api/progress - Updates junction tables tracking user completion states.
+│   └── roadmaps.js                       # GET /api/roadmaps - Delivers the deeply nested Roadmap -> Phase -> Module JSON tree.
+│
+├── prisma/                               # Database ORM & Schemas
+│   ├── schema.prisma                     # The single source of truth for the entire database structure.
+│   ├── seed.js                           # Master Orchestrator: runs all subsequent seed scripts in order.
+│   ├── seedAIML.js                       # Injects massive AI/ML curriculum data (PyTorch, TensorFlow nodes).
+│   ├── seedCheatsheets.js                # Parses and injects markdown cheatsheet files into the DB.
+│   ├── seedFullStack.js                  # Injects the complex Full Stack Web Development roadmap graph.
+│   ├── seedMaster250.js                  # Core FAANG-level DSA problem injections (Descriptions, Difficulty).
+│   ├── seedPatterns.js                   # Categorization maps (Sliding Window, Two Pointers, Trees).
+│   ├── seedRoadmaps.js                   # Generic roadmap table initialization.
+│   ├── seedSolution.js                   # Massive script injecting Brute Force and Optimal solutions in Python, Java, C++.
+│   ├── seedTestCases.js                  # Injects hidden input/output string pairs for Judge0 execution validation.
+│   └── syncAIMLContent.js                # Utility to pull and sync external markdown content into the DB.
+│
+├── .env                                  # Private server credentials (DATABASE_URL, GROK_API_KEY, JUDGE0 keys).
+├── Dockerfile                            # Production-ready multi-stage build image.
+└── index.js                              # Express initialization, CORS configuration, Middleware binding, and Server Listen.
+```
 
 ---
 
-## ⚙️ Environment Variables
+## 🔄 The Complete Backend Execution Workflows
 
-| Variable | Description | Required | Example |
+### 1. Remote Code Execution Pipeline (`/controllers/execution.controller.js`)
+Executing untrusted user code is incredibly dangerous. We manage this via Judge0.
+- **The Request**: The Next.js frontend POSTs a payload containing `{ source_code, language_id, stdin, problemId }`.
+- **Validation & Test Cases**: The Express controller queries Prisma to fetch the hidden test cases associated with `problemId`.
+- **Proxy to Judge0**: The payload is securely mapped to Judge0's expected format and sent to the Judge0 API.
+- **The Sandbox**: Judge0 mounts the code inside an isolated Docker container based on the `language_id` (e.g., Python 3.10, Java 17).
+- **Resource Constraints**: The Docker container is restricted by Linux `cgroups`. It is hard-capped at 5 seconds of CPU time and 128MB of RAM. If the user writes `while(true) {}`, the container is killed automatically (Status: Time Limit Exceeded).
+- **Result Diffing**: Judge0 returns `stdout`, `stderr`, and `compile_output`. The Express backend compares the `stdout` against the expected test case outputs. If they match, the submission is marked as `Accepted` in the Prisma Database.
+
+### 2. The AI ATS Scoring Engine (`/ai/ats.js`)
+We use a **Two-Pass System** to evaluate a resume against a job description.
+- **Pass 1: Deterministic Regex (Speed)**: The engine extracts the raw resume text and runs it against a massive internal dictionary array of Action Verbs, Technical Skills, and Soft Skills. This calculates a baseline mathematical score instantly.
+- **Pass 2: Groq Semantic Analysis (Depth)**: The text is formatted into a massive prompt alongside the Job Description and proxied to the Groq API (using LLaMA 3). 
+- **Why Groq?**: Evaluating a resume and job description requires reading ~3,000 tokens. A standard OpenAI API call could take 10-15 seconds, risking HTTP timeouts. Groq's Language Processing Units (LPUs) evaluate and generate the response in **~1.5 seconds**. Groq outputs a strict JSON block detailing semantic weaknesses and actionable bullet-point rewrites.
+
+### 3. Deep Relational Content Delivery (`/routes/roadmaps.js`)
+- The backend serves as a highly optimized content delivery system. 
+- Using Prisma's `include` syntax, a single request to `/api/roadmaps` performs complex SQL `JOIN` operations: It fetches the Roadmap, all associated Phases, all Modules within those Phases, AND the current authenticated user's `UserProgress` for every single module.
+- This allows the frontend to render the entire stateful roadmap tree in one pass.
+
+---
+
+## 🗄️ The Prisma Seeding Strategy
+
+The `prisma/` directory contains almost 10 massive JavaScript seeding files. Why? Because a learning platform is useless without content. 
+To guarantee every instance of PrepWise has access to a complete platform immediately, these scripts programmatically inject megabytes of data directly into PostgreSQL.
+
+- **`seedMaster250.js` & `seedTestCases.js`**: Populates the database with 250 FAANG questions, alongside their hidden test cases.
+- **`seedSolution.js`**: An enormous script that injects optimal and brute-force solutions (complete with Time/Space complexity explanations) in Python, Java, and C++ for every problem.
+- **`seedFullStack.js` & `seedAIML.js`**: Constructs the relational graph for the Roadmaps, mapping exactly what order a user should learn technologies.
+
+---
+
+## 🚀 Scaling & Production Deployments
+
+The backend is built to scale horizontally infinitely.
+
+1. **Absolute Statelessness**: 
+   The Express app maintains zero local state, zero memory caches, and zero session files. Sessions are validated via Clerk JWTs, and all data lives in Neon. You can spin up 1 or 1,000 Express containers behind a Load Balancer, and they will all function identically.
+
+2. **PgBouncer Connection Pooling**: 
+   Serverless Postgres architectures (like Neon) drop idle connections rapidly. If 500 users submit code simultaneously, Node.js will attempt to open 500 direct database connections, instantly crashing Postgres. The backend's `DATABASE_URL` is configured to use a transaction-level PgBouncer pool URL, securely multiplexing connections.
+
+3. **Graceful Shutdown Hooks**: 
+   When deploying new versions (or scaling down), Kubernetes/Docker sends a `SIGTERM` signal. `index.js` intercepts this and explicitly calls `prisma.$disconnect()`. This ensures no dangling database connections remain active during rollouts.
+
+---
+
+## 🔐 Core API Endpoints Reference
+
+| Endpoint | Method | Security | Purpose |
 |---|---|---|---|
-| `PORT` | API listener port | ❌ | `5000` |
-| `DATABASE_URL` | Neon Postgres Connection String | ✅ | `postgresql://neondb_owner...` |
-| `JWT_SECRET` | Legacy fallback secret | ✅ | `...` |
-| `GROK_API_KEY` | Groq API Key for ATS | ✅ | `gsk_...` |
-| `JUDGE0_API_URL` | Judge0 Endpoint | ✅ | `https://judge0-ce.p.rapidapi.com` |
-| `JUDGE0_API_KEY` | RapidAPI / Judge0 Key | ✅ | `...` |
-| `JUDGE0_CPU_LIMIT` | Sandbox Max Time (sec) | ❌ | `5` |
-| `JUDGE0_MEM_LIMIT` | Sandbox Max RAM (KB) | ❌ | `131072` |
-
----
-
-## 🐳 Docker Deployment
-
-The backend ships with a multi-stage Dockerfile that installs all necessary language runtimes if you choose to bypass Judge0 and execute locally (Not recommended for prod, but excellent for dev).
-
-```bash
-# Build
-docker build -t prepwise-api .
-
-# Run
-docker run -p 5000:5000 \
-  -e DATABASE_URL="postgresql://..." \
-  -e GROK_API_KEY="..." \
-  -e JUDGE0_API_URL="..." \
-  prepwise-api
-```
-
----
-
-## 🩺 Troubleshooting
-
-**Judge0 API returning 401 or timeouts:**
-- **Fix**: Verify `JUDGE0_API_KEY` and `JUDGE0_API_HOST`. If using the free RapidAPI tier, ensure you haven't exceeded the 50 requests/day quota.
-
-**Prisma `kind: Closed` or Timeout Errors:**
-- **Fix**: Serverless databases close connections rapidly. Ensure Node.js is using IPv4 first (`dns.setDefaultResultOrder('ipv4first')` is included in `index.js`), and ensure you are using the pooled connection URL, not the direct URL.
+| `/api/execution/run` | POST | Authenticated | Sends code to Judge0, compares output, updates DB |
+| `/api/ats/score` | POST | Authenticated | Triggers the Groq 2-pass resume scoring engine |
+| `/api/dsa/problems` | GET | Public | Fetches the paginated list of Master 250 problems |
+| `/api/dsa/problem/:id` | GET | Public | Fetches problem description, hints, and test cases |
+| `/api/progress/mark` | POST | Authenticated | Upserts a completed module record for a user |
+| `/api/auth/webhook` | POST | Svix Verified | Clerk identity sync (creates local User record) |
