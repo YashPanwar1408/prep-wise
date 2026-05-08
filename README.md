@@ -17,7 +17,7 @@
   
   ---
   
-  [**Frontend Docs**](./frontend/README.md) • [**Backend Docs**](./backend/README.md)
+  [**Frontend Docs**](./frontend/frontend.md) • [**Backend Docs**](./backend/backend.md)
 </div>
 
 ---
@@ -58,6 +58,12 @@ The platform is divided into a **React Server Components-driven Next.js Frontend
 - **Structured Learning**: Complete, phase-by-phase roadmaps for Full Stack Development, AI/ML Engineering, Frontend, and Backend.
 - **Progress Tracking**: Users can mark modules as complete, seamlessly tracking their progress across hundreds of topics, persistently saved in the Neon database.
 - **Static Generation**: Markdown-based cheatsheets are aggressively cached and served via Next.js React Server Components for instantaneous loads.
+
+### 6. 🧠 Comprehensive Learning Paths (Full Stack & AI/ML)
+- **Deep-Dive Theory & Examples**: Extensive, structured learning modules with dedicated paths for Full Stack Development and Artificial Intelligence/Machine Learning (AI/ML). Each topic is broken down with rich theoretical explanations, real-world examples, and detailed code snippets.
+- **Full Stack Mastery**: Step-by-step educational content covering everything from fundamental web technologies to advanced state management, system architecture, and API design.
+- **AI/ML Track**: Dedicated progression through Python programming, Data Science workflows, classical Machine Learning models, and Deep Learning concepts, paired with hands-on mathematical and programming examples.
+- **All-in-One Progression**: The learning modules are seamlessly integrated with the platform's roadmaps, allowing candidates to read the theory, see the examples, and immediately apply their knowledge in the platform's coding sandbox.
 
 ---
 

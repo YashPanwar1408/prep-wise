@@ -115,6 +115,11 @@ We use a **Two-Pass System** to evaluate a resume against a job description.
 - Using Prisma's `include` syntax, a single request to `/api/roadmaps` performs complex SQL `JOIN` operations: It fetches the Roadmap, all associated Phases, all Modules within those Phases, AND the current authenticated user's `UserProgress` for every single module.
 - This allows the frontend to render the entire stateful roadmap tree in one pass.
 
+### 4. Interactive Learning Content Delivery (`/routes/learn.js`)
+- **Rich Curriculum Parsing**: Endpoints dedicated to serving the massive amount of theoretical content, code examples, and mathematical explanations injected by `seedFullStack.js` and `seedAIML.js`.
+- **Markdown & Media**: The backend delivers structured JSON payloads containing raw Markdown content. It separates the "Theory" blocks from the "Example" blocks, enabling the frontend to render interactive UI components that switch between reading and coding.
+- **Dynamic Content Fetching**: As users progress through the Full Stack or AI/ML tracks, the API dynamically fetches and serves the exact chunk of learning material required for that module, avoiding massive payload sizes.
+
 ---
 
 ## 🗄️ The Prisma Seeding Strategy

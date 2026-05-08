@@ -148,6 +148,11 @@ This orchestrates two massive external libraries simultaneously without crashing
 - We fetch the entire roadmap tree directly in the RSC `page.tsx`. Next.js automatically caches this query at the Edge.
 - When a user clicks "Mark Module Complete", we fire a Server Action. We use `revalidatePath('/roadmaps')` inside the action, which tells Next.js to purge the cache and immediately reflect the new progress in the UI.
 
+### 5. Interactive Learning Modules (`/app/learn`)
+- **Full Stack & AI/ML Tracks**: Dedicated paths delivering comprehensive theory and code examples directly to the browser.
+- **Markdown & Code Rendering**: Complex mathematical formulas and deep theoretical explanations are written in Markdown. The frontend utilizes custom React components (like `react-markdown` and `rehype-highlight`) to safely parse and beautifully render this content via Server Components.
+- **Embedded Examples**: Instead of just reading, users see interactive code blocks and visual examples that bridge the gap between theoretical knowledge and practical execution in the sandboxed editor.
+
 ---
 
 ## ⚡ Performance & Optimization Strategies
