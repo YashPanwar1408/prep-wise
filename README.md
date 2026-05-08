@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://via.placeholder.com/800x200.png?text=PrepWise+-+The+Ultimate+Interview+Platform" alt="PrepWise Banner" />
+  <img src="frontend/public/prepwise.png" alt="PrepWise Banner" />
 
   # 🚀 PrepWise — The End-to-End Technical Interview Platform
   
@@ -214,3 +214,5 @@ This project involves complex asynchronous state and heavy system integrations. 
 
 ---
 **Architected and built for peak engineering performance.**
+
+## Made with ❤️ by Yash Panwar
