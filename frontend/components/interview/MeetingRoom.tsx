@@ -12,7 +12,7 @@ import {
 } from '@stream-io/video-react-sdk';
 import { useRouter } from 'next/navigation';
 import { useVapi } from '@/hooks/useVapi';
-import { Users, LayoutList, Mic, MicOff } from 'lucide-react';
+import { Users, LayoutList, Mic } from 'lucide-react';
 import Image from 'next/image';
 
 interface MeetingRoomProps {
@@ -25,7 +25,6 @@ interface MeetingRoomProps {
 
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
 
-// AI speaking animation component
 function AISpeakingWave({ isSpeaking }: { isSpeaking: boolean }) {
   return (
     <div className="flex items-end gap-[3px] h-5">
@@ -46,22 +45,40 @@ function AISpeakingWave({ isSpeaking }: { isSpeaking: boolean }) {
   );
 }
 
-// AI Participant Card shown alongside user's camera
+function TranscriptBar({
+  label,
+  text,
+  placeholder,
+  accentClass,
+}: {
+  label: string;
+  text: string;
+  placeholder: string;
+  accentClass: string;
+}) {
+  return (
+    <div
+      className={`flex-none min-h-[44px] max-h-[72px] overflow-y-auto rounded-lg border px-3 py-2 ${accentClass}`}
+    >
+      <p className="text-[10px] uppercase tracking-wide text-slate-500 mb-0.5">{label}</p>
+      <p className="text-xs text-slate-200 leading-relaxed">
+        {text || <span className="text-slate-500 italic">{placeholder}</span>}
+      </p>
+    </div>
+  );
+}
+
 function AIParticipantCard({
   isConnected,
   isSpeaking,
-  transcript,
 }: {
   isConnected: boolean;
   isSpeaking: boolean;
-  transcript: string;
 }) {
   return (
-    <div className="relative flex flex-col items-center justify-center bg-[#1c1f2e] rounded-2xl overflow-hidden border border-slate-700/50 h-full min-h-[280px] select-none">
-      {/* Background gradient */}
+    <div className="relative flex flex-col items-center justify-center bg-[#1c1f2e] rounded-2xl overflow-hidden border border-slate-700/50 flex-1 min-h-[200px] select-none">
       <div className="absolute inset-0 bg-gradient-to-b from-blue-900/10 to-slate-900/50" />
 
-      {/* Avatar */}
       <div className="relative z-10 flex flex-col items-center gap-3 p-6">
         <div
           className={`relative rounded-full overflow-hidden border-2 transition-all duration-300 ${
@@ -80,7 +97,6 @@ function AIParticipantCard({
             height={96}
             className="object-cover w-full h-full"
           />
-          {/* Pulse ring when speaking */}
           {isSpeaking && (
             <div className="absolute inset-0 rounded-full border-2 border-blue-400 animate-ping opacity-40" />
           )}
@@ -101,18 +117,8 @@ function AIParticipantCard({
             )}
           </div>
         </div>
-
-        {/* Live transcript bubble */}
-        {transcript && (
-          <div className="mt-2 max-w-[200px] bg-slate-800/80 backdrop-blur-sm rounded-xl px-3 py-2 border border-slate-600/50">
-            <p className="text-xs text-slate-300 text-center leading-relaxed line-clamp-3">
-              {transcript}
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* Name label */}
       <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md">
         <Mic size={10} className="text-blue-400" />
         <span className="text-xs text-white font-medium">AI Interviewer</span>
@@ -132,19 +138,22 @@ export function MeetingRoom({
   const [layout, setLayout] = useState<CallLayoutType>('speaker-left');
   const [showParticipants, setShowParticipants] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
-  const [lastTranscript, setLastTranscript] = useState('');
-  const hasStartedVapi = useRef(false);
+  const vapiStartAttempted = useRef(false);
 
-  const { useCallCallingState } = useCallStateHooks();
+  const { useCallCallingState, useMicrophoneState } = useCallStateHooks();
   const callingState = useCallCallingState();
+  const { microphone } = useMicrophoneState();
 
-  // VAPI for AI interviews
   const {
     startCall: startVapiCall,
     stopCall: stopVapiCall,
     transcript: vapiTranscript,
     isConnected: isVapiConnected,
     isSpeaking: aiSpeaking,
+    isUserSpeaking,
+    userTranscript,
+    assistantTranscript,
+    callId: vapiCallId,
   } = useVapi({
     assistantId,
     onCallStart: () => {
@@ -153,50 +162,78 @@ export function MeetingRoom({
     onCallEnd: () => {
       console.log('VAPI call ended');
     },
-    onMessage: (msg) => {
-      // Update last transcript for display
-      if (msg.type === 'transcript') {
-        const role = msg.role as string;
-        const text = (msg as any).transcript as string || msg.content as string || '';
-        if (role === 'assistant' && text) {
-          setLastTranscript(text);
-        }
-      }
-    },
   });
 
-  // Start VAPI call for AI interviews
+  // Release Stream microphone so Vapi can capture user speech (video stays on Stream)
   useEffect(() => {
     if (interviewType !== 'AI' || callingState !== CallingState.JOINED) {
       return;
     }
 
-    if (hasStartedVapi.current) {
-      return;
-    }
-
-    hasStartedVapi.current = true;
-
-    const startAI = async () => {
+    const releaseMicForVapi = async () => {
       try {
-        // Wait 1.5s for Stream's WebRTC to settle device capture on Windows
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        
-        const res = await fetch(`/api/interview/${interviewId}/vapi-config`);
-        if (!res.ok) throw new Error('Failed to fetch VAPI config');
-        const data = await res.json();
-        if (data.config) {
-          await startVapiCall(data.config);
-        } else if (assistantId) {
-          await startVapiCall(assistantId);
-        }
+        await microphone.disable();
       } catch (err) {
-        console.error('Error starting VAPI:', err);
+        console.warn('Could not release Stream microphone for VAPI:', err);
       }
     };
 
-    startAI();
+    void releaseMicForVapi();
+  }, [interviewType, callingState, microphone]);
+
+  // Start VAPI when joined — safe under React Strict Mode (cancelled flag, no one-shot ref)
+  useEffect(() => {
+    if (interviewType !== 'AI' || callingState !== CallingState.JOINED) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const startAI = async () => {
+      try {
+        // Let Stream mic disable settle, then start voice AI
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        if (cancelled) return;
+
+        const res = await fetch(`/api/interview/${interviewId}/vapi-config`);
+        if (!res.ok) throw new Error('Failed to fetch VAPI config');
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        if (data.config) {
+          if (!cancelled) await startVapiCall(data.config);
+        } else if (assistantId) {
+          if (!cancelled) await startVapiCall(assistantId);
+        } else {
+          throw new Error('No VAPI assistant configuration available');
+        }
+
+        vapiStartAttempted.current = true;
+      } catch (err) {
+        console.error('Error starting VAPI:', err);
+        vapiStartAttempted.current = false;
+      }
+    };
+
+    void startAI();
+
+    return () => {
+      cancelled = true;
+    };
   }, [interviewType, interviewId, assistantId, callingState, startVapiCall]);
+
+  // Stop VAPI when leaving the room
+  useEffect(() => {
+    if (interviewType !== 'AI') return;
+
+    return () => {
+      if (vapiStartAttempted.current) {
+        stopVapiCall();
+      }
+    };
+  }, [interviewType, stopVapiCall]);
 
   const handleEndCall = async () => {
     if (interviewType === 'AI') {
@@ -208,6 +245,7 @@ export function MeetingRoom({
           body: JSON.stringify({
             interviewId,
             transcript: vapiTranscript,
+            vapiCallId: vapiCallId || undefined,
           }),
         });
       } catch (err) {
@@ -244,44 +282,68 @@ export function MeetingRoom({
 
   return (
     <section className="relative h-[calc(100vh-4rem)] w-full overflow-hidden bg-slate-950 text-white str-video flex flex-col">
-      {/* Top HUD */}
       {interviewType === 'AI' && (
         <div className="flex-none flex items-center gap-3 px-4 pt-3 pb-1">
-          <div className={`flex items-center gap-2 px-3 py-1.5 backdrop-blur-sm rounded-lg border transition-all ${
-            isVapiConnected
-              ? 'bg-green-500/10 border-green-500/40'
-              : 'bg-yellow-500/10 border-yellow-500/40'
-          }`}>
-            <div className={`w-2 h-2 rounded-full ${isVapiConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-pulse'}`} />
-            <span className={`text-sm font-medium ${isVapiConnected ? 'text-green-400' : 'text-yellow-400'}`}>
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 backdrop-blur-sm rounded-lg border transition-all ${
+              isVapiConnected
+                ? 'bg-green-500/10 border-green-500/40'
+                : 'bg-yellow-500/10 border-yellow-500/40'
+            }`}
+          >
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isVapiConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-pulse'
+              }`}
+            />
+            <span
+              className={`text-sm font-medium ${
+                isVapiConnected ? 'text-green-400' : 'text-yellow-400'
+              }`}
+            >
               AI Interviewer {isVapiConnected ? '• Active' : '• Connecting...'}
             </span>
           </div>
           {aiSpeaking && (
             <div className="flex items-center gap-1.5 text-blue-400 text-sm">
               <AISpeakingWave isSpeaking={true} />
-              <span>Speaking</span>
+              <span>AI speaking</span>
+            </div>
+          )}
+          {isUserSpeaking && isVapiConnected && !aiSpeaking && (
+            <div className="flex items-center gap-1.5 text-emerald-400 text-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>You are speaking</span>
             </div>
           )}
         </div>
       )}
 
-      {/* Main content area */}
       <div className="flex-1 flex overflow-hidden min-h-0">
-        {/* For AI interview: show AI card + user video side by side */}
         {interviewType === 'AI' ? (
           <div className="flex flex-1 gap-3 p-3 pb-0 min-h-0">
-            {/* AI Participant Card */}
-            <div className="flex-1 min-w-0">
-              <AIParticipantCard
-                isConnected={isVapiConnected}
-                isSpeaking={aiSpeaking}
-                transcript={lastTranscript}
+            {/* AI panel + transcript */}
+            <div className="flex flex-1 flex-col gap-2 min-w-0 min-h-0">
+              <AIParticipantCard isConnected={isVapiConnected} isSpeaking={aiSpeaking} />
+              <TranscriptBar
+                label="AI"
+                text={assistantTranscript}
+                placeholder="AI responses will appear here…"
+                accentClass="bg-blue-950/40 border-blue-500/30"
               />
             </div>
-            {/* User Video */}
-            <div className="flex-1 min-w-0 str-video">
-              <CallLayout />
+
+            {/* User video + transcript */}
+            <div className="flex flex-1 flex-col gap-2 min-w-0 min-h-0">
+              <div className="flex-1 min-h-0 str-video rounded-2xl overflow-hidden border border-slate-700/50">
+                <CallLayout />
+              </div>
+              <TranscriptBar
+                label="You"
+                text={userTranscript}
+                placeholder="Your speech will appear here…"
+                accentClass="bg-emerald-950/30 border-emerald-500/30"
+              />
             </div>
           </div>
         ) : (
@@ -292,7 +354,6 @@ export function MeetingRoom({
           </div>
         )}
 
-        {/* Participants Panel */}
         {showParticipants && (
           <div className="w-[300px] flex-none bg-[#1c1f2e] rounded-xl m-3 ml-0 p-4 overflow-y-auto">
             <CallParticipantsList onClose={() => setShowParticipants(false)} />
@@ -300,7 +361,6 @@ export function MeetingRoom({
         )}
       </div>
 
-      {/* Bottom Controls */}
       <div className="flex-none flex w-full items-center justify-center gap-4 flex-wrap py-3 px-4 bg-slate-950/80 backdrop-blur-md border-t border-slate-800">
         <CallControls onLeave={handleEndCall} />
 
@@ -316,19 +376,28 @@ export function MeetingRoom({
           {showLayoutMenu && (
             <div className="absolute bottom-full left-0 mb-2 w-48 rounded-lg bg-[#1c1f2e] p-2 shadow-xl border border-slate-700">
               <button
-                onClick={() => { setLayout('grid'); setShowLayoutMenu(false); }}
+                onClick={() => {
+                  setLayout('grid');
+                  setShowLayoutMenu(false);
+                }}
                 className="w-full text-left px-4 py-2 hover:bg-[#323b44] rounded text-sm text-white"
               >
                 Grid View
               </button>
               <button
-                onClick={() => { setLayout('speaker-left'); setShowLayoutMenu(false); }}
+                onClick={() => {
+                  setLayout('speaker-left');
+                  setShowLayoutMenu(false);
+                }}
                 className="w-full text-left px-4 py-2 hover:bg-[#323b44] rounded text-sm text-white"
               >
                 Speaker Left
               </button>
               <button
-                onClick={() => { setLayout('speaker-right'); setShowLayoutMenu(false); }}
+                onClick={() => {
+                  setLayout('speaker-right');
+                  setShowLayoutMenu(false);
+                }}
                 className="w-full text-left px-4 py-2 hover:bg-[#323b44] rounded text-sm text-white"
               >
                 Speaker Right

@@ -15,15 +15,17 @@ export interface VapiAssistantConfig {
     provider: string;
     voiceId: string;
   };
-  transcriber?: {
+  transcriber: {
     provider: string;
     model: string;
     language: string;
   };
+  clientMessages: string[];
   firstMessage: string;
   silenceTimeoutSeconds: number;
   maxDurationSeconds: number;
-  endCallFunctionEnabled?: boolean;
+  endCallFunctionEnabled: boolean;
+  backgroundSound?: string;
 }
 
 /**
@@ -118,9 +120,17 @@ export function buildVapiAssistantPayload(config: {
       provider: 'openai',
       voiceId: 'nova',
     },
+    transcriber: {
+      provider: 'deepgram',
+      model: 'nova-2',
+      language: 'en-US',
+    },
+    clientMessages: ['transcript', 'speech-update', 'status-update'],
     firstMessage,
     silenceTimeoutSeconds: 30,
     maxDurationSeconds: duration * 60 + 120,
+    endCallFunctionEnabled: false,
+    backgroundSound: 'off',
   };
 }
 

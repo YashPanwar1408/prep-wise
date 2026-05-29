@@ -17,7 +17,8 @@
     "seed:content": "node prisma/seedRoadmaps.js && node prisma/seedCheatsheets.js",
     "seed:testcases": "node prisma/seedTestCases.js",
     "seed:solutions": "node prisma/seedSolution.js",
-    "seed:problems": "node prisma/seedPatterns.js && node prisma/seedMaster250.js && node prisma/seedSolution.js && node prisma/seedTestCases.js"
+    "seed:problems": "node prisma/seedPatterns.js && node prisma/seedMaster250.js && node prisma/seedSolution.js && node prisma/seedTestCases.js",
+    "seed:all": "npm run prisma:seed && npm run prisma:seed:fullstack && npm run seed:content && npm run seed:problems && npm run sync:aiml-content"
   },
   "dependencies": {
     "@prisma/client": "^5.9.1",
